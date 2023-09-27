@@ -4,11 +4,11 @@ on:
   push:
 
 jobs:
-  build-and-check:
-    name: Build Hugo and Check Links
+  check:
+    name: Broken Link Check
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
+      - name: Checkout code
         uses: actions/checkout@v2
 
       - name: Setup Hugo
@@ -16,5 +16,8 @@ jobs:
         with:
           hugo-version: "latest"
 
-      - name: Build Hugo Site
-        run: hugo --
+      - name: Build Hugo site
+        run: hugo
+
+      - name: Check links with linkcheck
+        uses: filiph/linkcheck@2.0.23

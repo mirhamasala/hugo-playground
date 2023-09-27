@@ -13,8 +13,7 @@ jobs:
       - name: Check links with linkcheck
         uses: filiph/linkcheck@2.0.23
         with:
-          arguments: https://www.mirhamasala.com/posts/the-fear-list --external --skip-file skip-file.txt
-        id: linkcheck
+          arguments: https://www.mirhamasala.com/posts/the-fear-list --external --skip-file /skip-file.txt
 
       - name: Save linkcheck results
         run: echo "${{ steps.linkcheck.outputs.stdout }}" > linkcheck-results.txt
@@ -24,13 +23,3 @@ jobs:
         with:
           name: linkcheck-results
           path: linkcheck-results.txt
-
-      - name: Check linkcheck results
-        run: |
-          if grep -q "Broken links found" linkcheck-results.txt; then
-            echo "Errors found in linkcheck results, but continuing..."
-            exit 0
-          else
-            echo "No errors found in linkcheck results."
-            exit 0
-          fi

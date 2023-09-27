@@ -1,23 +1,25 @@
-name: Broken Link Check
+name: Link Check
 
-on:
-  push:
+on: [push]
 
 jobs:
-  check:
-    name: Broken Link Check
+  linkcheck:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Setup Hugo
-        uses: peaceiris/actions-hugo@v2
-        with:
-          hugo-version: "latest"
-
-      - name: Build Hugo site
-        run: hugo
+      - name: Checkout
+        uses: actions/checkout@v4.1.0
 
       - name: Check links with linkcheck
         uses: filiph/linkcheck@2.0.23
+        with:
+          arguments: https://www.mirhamasala.com/posts/the-fear-list --external --skip-file skip-file.txt
+
+      - name: Save linkcheck results
+        run: echo "${{ steps.linkcheck.outputs.stdout }}" > linkcheck-results.txt
+
+      - name: Upload linkcheck-results.txt as artifact
+        uses: actions/upload-artifact@v3.1.3
+        with:
+          name: linkcheck-results
+          path: linkcheck-results.txt

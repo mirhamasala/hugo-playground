@@ -1,4 +1,4 @@
-name: Link Check
+name: Check Broken Links
 
 on:
   schedule:
@@ -6,25 +6,25 @@ on:
   workflow_dispatch:
 
 jobs:
-  linkcheck:
+  link-check:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4.1.0
 
-      - name: Check links with linkcheck
-        uses: filiph/linkcheck@2.0.23
+      - name: Check links with link-check
+        uses: filiph/link-check@2.0.23
         with:
-          arguments: https://www.mirhamasala.com/posts/the-fear-list --external --skip-file linkcheck-skip-file.txt > linkcheck-results.txt
-        id: linkcheck
+          arguments: https://www.mirhamasala.com --external --skip-file link-check-skip-file.txt > link-check-results.txt
+        id: link-check
 
-      - name: Upload linkcheck-results.txt as artifact
+      - name: Upload link-check-results.txt as artifact
         if: ${{ failure() }}
         uses: actions/upload-artifact@v3.1.3
         with:
-          name: linkcheck-results
-          path: linkcheck-results.txt
+          name: link-check-results
+          path: link-check-results.txt
 
       - name: Create GitHub issue
         if: ${{ failure() }}
@@ -34,13 +34,10 @@ jobs:
           title: "[BUG] Broken links found"
           body: |
             **Describe the bug**
-            During our scheduled link check, the workflow named `broken-link-check` identified one or more broken links in the repository.
-
+            During our scheduled (or manually-triggered) link check, the workflow named `check-broken-links` identified one or more broken links in the repository.
             Details of the broken links, including their locations and the reasons for failure, can be found in the `link-check-results.txt` artifact, following the failed run link below.
-
             [Failed Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
             [Codebase](https://github.com/${{ github.repository }}/tree/${{ github.sha }})
-
             🔗 Workflow name - `${{ github.workflow }}`
             📇 Job -           `${{ github.job }}`
             🚦 Status -        `${{ job.status }}`

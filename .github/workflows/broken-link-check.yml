@@ -10,21 +10,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4.1.0
 
-      - name: Check Dart Availability
-        run: dart --version || echo "Dart is not installed"
-
-      - name: Setup Dart SDK
-        uses: dart-lang/setup-dart@main
-
-      - name: Install linkcheck
-        run: dart pub global activate linkcheck
-
-      - name: Check gh CLI Availability
-        run: gh --version || echo "gh CLI is not installed"
-
-      - name: Run linkcheck
-        run: dart pub global run linkcheck:linkcheck https://www.mirhamasala.com/posts/the-fear-list --external > linkcheck-results.txt
+      - name: Check links with linkcheck
+        uses: filiph/linkcheck@2.0.23
+        with:
+          arguments: https://www.mirhamasala.com/posts/the-fear-list --external --skip-file skip-file.txt
+        id: linkcheck
         continue-on-error: true
+
+      - name: Save linkcheck results
+        run: echo "${{ steps.linkcheck.outputs.stdout }}" > linkcheck-results.txt
 
       - name: Upload linkcheck-results.txt as artifact
         uses: actions/upload-artifact@v2

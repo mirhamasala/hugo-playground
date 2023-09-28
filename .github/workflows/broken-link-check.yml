@@ -17,6 +17,12 @@ jobs:
         id: linkcheck
         continue-on-error: true
 
+      - name: List workspace contents
+        run: ls -R
+
+      - name: Find linkcheck results
+        run: find /github/workspace -name "linkcheck*"
+
       - name: Save linkcheck results
         run: echo "${{ steps.linkcheck.outputs.stdout }}" > linkcheck-results.txt
 

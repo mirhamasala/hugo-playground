@@ -18,7 +18,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload linkcheck-results.txt as artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3.1.3
         with:
-          name: linkcheck-results.txt
+          name: linkcheck-results
           path: linkcheck-results.txt

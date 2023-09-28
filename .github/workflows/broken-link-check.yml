@@ -13,7 +13,7 @@ jobs:
       - name: Check links with linkcheck
         uses: filiph/linkcheck@2.0.23
         with:
-          arguments: https://www.mirhamasala.com/posts/the-fear-list --external --skip-file skip-file.txt > linkcheck-results.txt
+          arguments: https://www.mirhamasala.com/posts/the-fear-list --external --skip-file linkcheck-skip-file.txt > linkcheck-results.txt
         id: linkcheck
         continue-on-error: true
 
@@ -23,9 +23,15 @@ jobs:
           name: linkcheck-results
           path: linkcheck-results.txt
 
-      - name: Create Issue
+      - name: Create Issue on Failed workflow
         uses: dacbd/create-issue-action@main
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          title: Broken links found in documentation
-          body: The link check workflow found broken links. Please review and fix.
+          token: ${{ github.token }}
+          title: Action workflow failed.
+          body: |
+            ### Context
+            [Failed Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            [Codebase](https://github.com/${{ github.repository }}/tree/${{ github.sha }})
+            Workflow name - `${{ github.workflow }}`
+            Job -           `${{ github.job }}`
+            status -        `${{ job.status }}`

@@ -1,6 +1,9 @@
 name: Link Check
 
-on: [push]
+on:
+  schedule:
+    - cron: "0 0 * * 1"
+  workflow_dispatch:
 
 jobs:
   linkcheck:
@@ -23,16 +26,22 @@ jobs:
           name: linkcheck-results
           path: linkcheck-results.txt
 
-      - name: Create Issue on Failed workflow
+      - name: Create GitHub issue
         if: ${{ failure() }}
         uses: dacbd/create-issue-action@main
         with:
           token: ${{ github.token }}
-          title: Action workflow failed.
+          title: "[BUG] Broken links found"
           body: |
-            ### Context
+            **Describe the bug**
+            During our scheduled link check, the workflow named `broken-link-check` identified one or more broken links in the repository.
+
+            Details of the broken links, including their locations and the reasons for failure, can be found in the `link-check-results.txt` artifact, following the failed run link below.
+
             [Failed Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
             [Codebase](https://github.com/${{ github.repository }}/tree/${{ github.sha }})
-            Workflow name - `${{ github.workflow }}`
-            Job -           `${{ github.job }}`
-            status -        `${{ job.status }}`
+
+            🔗 Workflow name - `${{ github.workflow }}`
+            📇 Job -           `${{ github.job }}`
+            🚦 Status -        `${{ job.status }}`
+          labels: "bug"

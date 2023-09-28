@@ -24,29 +24,8 @@ jobs:
           path: linkcheck-results.txt
 
       - name: Create Issue
-        uses: actions/github-script@v2.1.0
+        uses: dacbd/create-issue-action@main
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const issueTitle = "My Issue Title";
-            const issueBody = "This is the issue body.";
-            const octokit = new github.GitHub(token);
-
-            octokit.issues.create({
-              owner: github.repository_owner,
-              repo: github.repository,
-              title: issueTitle,
-              body: issueBody,
-            });
-      # - name: Open a GitHub issue
-      #   uses: octokit/request-action@v2.1.0
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      #   with:
-      #     route: POST /repos/${{ github.repository }}/issues
-      #     body: |
-      #       {
-      #         "title": "Broken links found in documentation",
-      #         "body": "The link check workflow found broken links. Please review and fix them.",
-      #         "labels": ["bug"]
-      #       }
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: Broken links found in documentation
+          body: The link check workflow found broken links. Please review and fix.

@@ -23,8 +23,7 @@ jobs:
           name: linkcheck-results
           path: linkcheck-results.txt
 
-      - name: Create GitHub issue on broken links
-        if: ${{ failure() }}
+      - name: Check for broken links and open issue
         uses: octokit/request-action@v2.1.0
         with:
           route: POST /repos/${{ github.repository }}/issues
@@ -34,5 +33,4 @@ jobs:
               "body": "The link check workflow found broken links. Please review and fix them.",
               "labels": ["bug"]
             }
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if: ${{ steps.linkcheck.outputs.exitcode == '1' }}

@@ -23,7 +23,7 @@ jobs:
           name: linkcheck-results
           path: linkcheck-results.txt
 
-      - name: Check for broken links and open issue
+      - name: Open a GitHub issue
         uses: octokit/request-action@v2.1.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

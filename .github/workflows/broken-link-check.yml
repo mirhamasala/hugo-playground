@@ -20,5 +20,5 @@ jobs:
       - name: Upload linkcheck-results.txt as artifact
         uses: actions/upload-artifact@v2
         with:
-          name: linkcheck-results
+          name: linkcheck-results.txt
           path: linkcheck-results.txt

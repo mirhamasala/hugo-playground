@@ -13,18 +13,9 @@ jobs:
       - name: Check links with linkcheck
         uses: filiph/linkcheck@2.0.23
         with:
-          arguments: https://www.mirhamasala.com/posts/the-fear-list --external --skip-file skip-file.txt
+          arguments: https://www.mirhamasala.com/posts/the-fear-list --external > linkcheck-results.txt
         id: linkcheck
         continue-on-error: true
-
-      - name: List workspace contents
-        run: ls -R
-
-      - name: Find linkcheck results
-        run: find /github/workspace -name "linkcheck*"
-
-      - name: Save linkcheck results
-        run: echo "${{ steps.linkcheck.outputs.stdout }}" > linkcheck-results.txt
 
       - name: Upload linkcheck-results.txt as artifact
         uses: actions/upload-artifact@v2

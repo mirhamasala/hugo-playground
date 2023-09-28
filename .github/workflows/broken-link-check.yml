@@ -15,15 +15,16 @@ jobs:
         with:
           arguments: https://www.mirhamasala.com/posts/the-fear-list --external --skip-file linkcheck-skip-file.txt > linkcheck-results.txt
         id: linkcheck
-        continue-on-error: true
 
       - name: Upload linkcheck-results.txt as artifact
+        if: ${{ failure() }}
         uses: actions/upload-artifact@v3.1.3
         with:
           name: linkcheck-results
           path: linkcheck-results.txt
 
       - name: Create Issue on Failed workflow
+        if: ${{ failure() }}
         uses: dacbd/create-issue-action@main
         with:
           token: ${{ github.token }}

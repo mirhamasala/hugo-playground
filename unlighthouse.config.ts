@@ -1,5 +1,5 @@
 export default {
-  site: "https://www.mirhamasala.com",
+  site: "https://filecoin.io",
   outputPath: "static/unlighthouse",
   routerPrefix: "/unlighthouse",
   cache: true,

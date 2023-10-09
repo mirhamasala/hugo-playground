@@ -22,4 +22,6 @@
 # http://example-broken-link.com # Broken link, site is down
 #
 # ================================
+.*facebook\.com.*
 .*instagram\.com.*
+.*twitter\.com.*

@@ -1,4 +1,5 @@
-baseURL = 'https://example.org/'
+baseURL = 'https://mirha.netlify.app'
 languageCode = 'en-us'
 title = 'Hugo Playground'
 theme = "ananke"
+ignoreFiles = ["^unlighthouse.config.js$"]

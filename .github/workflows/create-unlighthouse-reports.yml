@@ -28,9 +28,6 @@ jobs:
       - name: Run Unlighthouse CI
         run: unlighthouse-ci --config unlighthouse.config.ts --build-static
 
-      - name: Create a fake change
-        run: echo "This is a temporary file for testing the workflow." > temp.txt
-
       - name: Create new branch and commit changes
         run: |
           git config --local user.email "action@github.com"

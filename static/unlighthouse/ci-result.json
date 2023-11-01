@@ -1,8 +1,8 @@
 [
   {
     "path": "/",
-    "score": 0.92,
-    "performance": 0.96,
+    "score": 0.68,
+    "performance": null,
     "accessibility": 0.89,
     "best-practices": 1,
     "seo": 0.83
@@ -10,7 +10,7 @@
   {
     "path": "/blog/",
     "score": 0.86,
-    "performance": 0.86,
+    "performance": 0.85,
     "accessibility": 0.84,
     "best-practices": 1,
     "seo": 0.75

@@ -1,4 +1,4 @@
-const p$6 = function polyfill() {
+const p$5 = function polyfill() {
   const relList = document.createElement("link").relList;
   if (relList && relList.supports && relList.supports("modulepreload")) {
     return;
@@ -39,7 +39,7 @@ const p$6 = function polyfill() {
     fetch(link.href, fetchOpts);
   }
 };
-p$6();
+p$5();
 function makeMap(str, expectsLowerCase) {
   const map = /* @__PURE__ */ Object.create(null);
   const list = str.split(",");
@@ -71,9 +71,9 @@ const isSet = (val) => toTypeString(val) === "[object Set]";
 const isFunction$1 = (val) => typeof val === "function";
 const isString$1 = (val) => typeof val === "string";
 const isSymbol$1 = (val) => typeof val === "symbol";
-const isObject$2 = (val) => val !== null && typeof val === "object";
+const isObject$3 = (val) => val !== null && typeof val === "object";
 const isPromise = (val) => {
-  return isObject$2(val) && isFunction$1(val.then) && isFunction$1(val.catch);
+  return (isObject$3(val) || isFunction$1(val)) && isFunction$1(val.then) && isFunction$1(val.catch);
 };
 const objectToString$1 = Object.prototype.toString;
 const toTypeString = (value) => objectToString$1.call(value);
@@ -100,12 +100,13 @@ const hyphenateRE = /\B([A-Z])/g;
 const hyphenate = cacheStringFunction(
   (str) => str.replace(hyphenateRE, "-$1").toLowerCase()
 );
-const capitalize = cacheStringFunction(
-  (str) => str.charAt(0).toUpperCase() + str.slice(1)
-);
-const toHandlerKey = cacheStringFunction(
-  (str) => str ? `on${capitalize(str)}` : ``
-);
+const capitalize = cacheStringFunction((str) => {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+});
+const toHandlerKey = cacheStringFunction((str) => {
+  const s2 = str ? `on${capitalize(str)}` : ``;
+  return s2;
+});
 const hasChanged = (value, oldValue) => !Object.is(value, oldValue);
 const invokeArrayFns = (fns, arg) => {
   for (let i2 = 0; i2 < fns.length; i2++) {
@@ -144,9 +145,7 @@ function normalizeStyle(value) {
       }
     }
     return res;
-  } else if (isString$1(value)) {
-    return value;
-  } else if (isObject$2(value)) {
+  } else if (isString$1(value) || isObject$3(value)) {
     return value;
   }
 }
@@ -174,7 +173,7 @@ function normalizeClass(value) {
         res += normalized + " ";
       }
     }
-  } else if (isObject$2(value)) {
+  } else if (isObject$3(value)) {
     for (const name in value) {
       if (value[name]) {
         res += name + " ";
@@ -189,7 +188,7 @@ function includeBooleanAttr(value) {
   return !!value || value === "";
 }
 const toDisplayString = (val) => {
-  return isString$1(val) ? val : val == null ? "" : isArray$3(val) || isObject$2(val) && (val.toString === objectToString$1 || !isFunction$1(val.toString)) ? JSON.stringify(val, replacer, 2) : String(val);
+  return isString$1(val) ? val : val == null ? "" : isArray$3(val) || isObject$3(val) && (val.toString === objectToString$1 || !isFunction$1(val.toString)) ? JSON.stringify(val, replacer, 2) : String(val);
 };
 const replacer = (_key, val) => {
   if (val && val.__v_isRef) {
@@ -205,7 +204,7 @@ const replacer = (_key, val) => {
     return {
       [`Set(${val.size})`]: [...val.values()]
     };
-  } else if (isObject$2(val) && !isArray$3(val) && !isPlainObject(val)) {
+  } else if (isObject$3(val) && !isArray$3(val) && !isPlainObject(val)) {
     return String(val);
   }
   return val;
@@ -437,7 +436,7 @@ function trigger(target, type, key, newValue, oldValue, oldTarget) {
   } else if (key === "length" && isArray$3(target)) {
     const newLength = Number(newValue);
     depsMap.forEach((dep, key2) => {
-      if (key2 === "length" || key2 >= newLength) {
+      if (key2 === "length" || !isSymbol$1(key2) && key2 >= newLength) {
         deps.push(dep);
       }
     });
@@ -519,9 +518,6 @@ const isNonTrackableKeys = /* @__PURE__ */ makeMap(`__proto__,__v_isRef,__isVue`
 const builtInSymbols = new Set(
   /* @__PURE__ */ Object.getOwnPropertyNames(Symbol).filter((key) => key !== "arguments" && key !== "caller").map((key) => Symbol[key]).filter(isSymbol$1)
 );
-const get$1$1 = /* @__PURE__ */ createGetter();
-const shallowGet = /* @__PURE__ */ createGetter(false, true);
-const readonlyGet = /* @__PURE__ */ createGetter(true);
 const arrayInstrumentations = /* @__PURE__ */ createArrayInstrumentations();
 function createArrayInstrumentations() {
   const instrumentations = {};
@@ -554,8 +550,13 @@ function hasOwnProperty$b(key) {
   track(obj, "has", key);
   return obj.hasOwnProperty(key);
 }
-function createGetter(isReadonly2 = false, shallow = false) {
-  return function get2(target, key, receiver) {
+class BaseReactiveHandler {
+  constructor(_isReadonly = false, _shallow = false) {
+    this._isReadonly = _isReadonly;
+    this._shallow = _shallow;
+  }
+  get(target, key, receiver) {
+    const isReadonly2 = this._isReadonly, shallow = this._shallow;
     if (key === "__v_isReactive") {
       return !isReadonly2;
     } else if (key === "__v_isReadonly") {
@@ -587,21 +588,22 @@ function createGetter(isReadonly2 = false, shallow = false) {
     if (isRef(res)) {
       return targetIsArray && isIntegerKey(key) ? res : res.value;
     }
-    if (isObject$2(res)) {
+    if (isObject$3(res)) {
       return isReadonly2 ? readonly(res) : reactive(res);
     }
     return res;
-  };
+  }
 }
-const set$1 = /* @__PURE__ */ createSetter();
-const shallowSet = /* @__PURE__ */ createSetter(true);
-function createSetter(shallow = false) {
-  return function set2(target, key, value, receiver) {
+class MutableReactiveHandler extends BaseReactiveHandler {
+  constructor(shallow = false) {
+    super(false, shallow);
+  }
+  set(target, key, value, receiver) {
     let oldValue = target[key];
     if (isReadonly(oldValue) && isRef(oldValue) && !isRef(value)) {
       return false;
     }
-    if (!shallow) {
+    if (!this._shallow) {
       if (!isShallow(value) && !isReadonly(value)) {
         oldValue = toRaw(oldValue);
         value = toRaw(value);
@@ -621,51 +623,47 @@ function createSetter(shallow = false) {
       }
     }
     return result;
-  };
-}
-function deleteProperty(target, key) {
-  const hadKey = hasOwn$1(target, key);
-  target[key];
-  const result = Reflect.deleteProperty(target, key);
-  if (result && hadKey) {
-    trigger(target, "delete", key, void 0);
   }
-  return result;
-}
-function has$1(target, key) {
-  const result = Reflect.has(target, key);
-  if (!isSymbol$1(key) || !builtInSymbols.has(key)) {
-    track(target, "has", key);
+  deleteProperty(target, key) {
+    const hadKey = hasOwn$1(target, key);
+    target[key];
+    const result = Reflect.deleteProperty(target, key);
+    if (result && hadKey) {
+      trigger(target, "delete", key, void 0);
+    }
+    return result;
   }
-  return result;
+  has(target, key) {
+    const result = Reflect.has(target, key);
+    if (!isSymbol$1(key) || !builtInSymbols.has(key)) {
+      track(target, "has", key);
+    }
+    return result;
+  }
+  ownKeys(target) {
+    track(
+      target,
+      "iterate",
+      isArray$3(target) ? "length" : ITERATE_KEY
+    );
+    return Reflect.ownKeys(target);
+  }
 }
-function ownKeys(target) {
-  track(target, "iterate", isArray$3(target) ? "length" : ITERATE_KEY);
-  return Reflect.ownKeys(target);
-}
-const mutableHandlers = {
-  get: get$1$1,
-  set: set$1,
-  deleteProperty,
-  has: has$1,
-  ownKeys
-};
-const readonlyHandlers = {
-  get: readonlyGet,
+class ReadonlyReactiveHandler extends BaseReactiveHandler {
+  constructor(shallow = false) {
+    super(true, shallow);
+  }
   set(target, key) {
     return true;
-  },
+  }
   deleteProperty(target, key) {
     return true;
   }
-};
-const shallowReactiveHandlers = /* @__PURE__ */ extend(
-  {},
-  mutableHandlers,
-  {
-    get: shallowGet,
-    set: shallowSet
-  }
+}
+const mutableHandlers = /* @__PURE__ */ new MutableReactiveHandler();
+const readonlyHandlers = /* @__PURE__ */ new ReadonlyReactiveHandler();
+const shallowReactiveHandlers = /* @__PURE__ */ new MutableReactiveHandler(
+  true
 );
 const toShallow = (value) => value;
 const getProto = (v2) => Reflect.getPrototypeOf(v2);
@@ -674,7 +672,7 @@ function get$2(target, key, isReadonly2 = false, isShallow2 = false) {
   const rawTarget = toRaw(target);
   const rawKey = toRaw(key);
   if (!isReadonly2) {
-    if (key !== rawKey) {
+    if (hasChanged(key, rawKey)) {
       track(rawTarget, "get", key);
     }
     track(rawTarget, "get", rawKey);
@@ -694,7 +692,7 @@ function has(key, isReadonly2 = false) {
   const rawTarget = toRaw(target);
   const rawKey = toRaw(key);
   if (!isReadonly2) {
-    if (key !== rawKey) {
+    if (hasChanged(key, rawKey)) {
       track(rawTarget, "has", key);
     }
     track(rawTarget, "has", rawKey);
@@ -979,7 +977,7 @@ function readonly(target) {
   );
 }
 function createReactiveObject(target, isReadonly2, baseHandlers, collectionHandlers, proxyMap) {
-  if (!isObject$2(target)) {
+  if (!isObject$3(target)) {
     return target;
   }
   if (target["__v_raw"] && !(isReadonly2 && target["__v_isReactive"])) {
@@ -1023,8 +1021,8 @@ function markRaw(value) {
   def(value, "__v_skip", true);
   return value;
 }
-const toReactive = (value) => isObject$2(value) ? reactive(value) : value;
-const toReadonly = (value) => isObject$2(value) ? readonly(value) : value;
+const toReactive = (value) => isObject$3(value) ? reactive(value) : value;
+const toReadonly = (value) => isObject$3(value) ? readonly(value) : value;
 function trackRefValue(ref2) {
   if (shouldTrack && activeEffect) {
     ref2 = toRaw(ref2);
@@ -1158,7 +1156,7 @@ function toRef$1(source, key, defaultValue) {
     return source;
   } else if (isFunction$1(source)) {
     return new GetterRefImpl(source);
-  } else if (isObject$2(source) && arguments.length > 1) {
+  } else if (isObject$3(source) && arguments.length > 1) {
     return propertyToRef(source, key, defaultValue);
   } else {
     return ref(source);
@@ -1166,11 +1164,7 @@ function toRef$1(source, key, defaultValue) {
 }
 function propertyToRef(source, key, defaultValue) {
   const val = source[key];
-  return isRef(val) ? val : new ObjectRefImpl(
-    source,
-    key,
-    defaultValue
-  );
+  return isRef(val) ? val : new ObjectRefImpl(source, key, defaultValue);
 }
 class ComputedRefImpl {
   constructor(getter, _setter, isReadonly2, isSSR) {
@@ -1297,8 +1291,13 @@ function findInsertionIndex(id) {
   let end = queue.length;
   while (start < end) {
     const middle = start + end >>> 1;
-    const middleJobId = getId(queue[middle]);
-    middleJobId < id ? start = middle + 1 : end = middle;
+    const middleJob = queue[middle];
+    const middleJobId = getId(middleJob);
+    if (middleJobId < id || middleJobId === id && middleJob.pre) {
+      start = middle + 1;
+    } else {
+      end = middle;
+    }
   }
   return start;
 }
@@ -1477,7 +1476,7 @@ function normalizeEmitsOptions(comp, appContext, asMixin = false) {
     }
   }
   if (!raw && !hasExtends) {
-    if (isObject$2(comp)) {
+    if (isObject$3(comp)) {
       cache.set(comp, null);
     }
     return null;
@@ -1487,7 +1486,7 @@ function normalizeEmitsOptions(comp, appContext, asMixin = false) {
   } else {
     extend(normalized, raw);
   }
-  if (isObject$2(comp)) {
+  if (isObject$3(comp)) {
     cache.set(comp, normalized);
   }
   return normalized;
@@ -1709,6 +1708,38 @@ function updateHOCHostEl({ vnode, parent }, el) {
     parent = parent.parent;
   }
 }
+const COMPONENTS = "components";
+const NULL_DYNAMIC_COMPONENT = Symbol.for("v-ndc");
+function resolveDynamicComponent(component) {
+  if (isString$1(component)) {
+    return resolveAsset(COMPONENTS, component, false) || component;
+  } else {
+    return component || NULL_DYNAMIC_COMPONENT;
+  }
+}
+function resolveAsset(type, name, warnMissing = true, maybeSelfReference = false) {
+  const instance = currentRenderingInstance || currentInstance;
+  if (instance) {
+    const Component = instance.type;
+    if (type === COMPONENTS) {
+      const selfName = getComponentName(
+        Component,
+        false
+      );
+      if (selfName && (selfName === name || selfName === camelize(name) || selfName === capitalize(camelize(name)))) {
+        return Component;
+      }
+    }
+    const res = resolve(instance[type] || Component[type], name) || resolve(instance.appContext[type], name);
+    if (!res && maybeSelfReference) {
+      return Component;
+    }
+    return res;
+  }
+}
+function resolve(registry, name) {
+  return registry && (registry[name] || registry[camelize(name)] || registry[capitalize(camelize(name))]);
+}
 const isSuspense = (type) => type.__isSuspense;
 function queueEffectWithSuspense(fn, suspense) {
   if (suspense && suspense.pendingBranch) {
@@ -1811,9 +1842,7 @@ function doWatch(source, cb, { immediate, deep, flush, onTrack, onTrigger } = EM
     }
     if (cb) {
       const newValue = effect.run();
-      if (deep || forceTrigger || (isMultiSource ? newValue.some(
-        (v2, i2) => hasChanged(v2, oldValue[i2])
-      ) : hasChanged(newValue, oldValue)) || false) {
+      if (deep || forceTrigger || (isMultiSource ? newValue.some((v2, i2) => hasChanged(v2, oldValue[i2])) : hasChanged(newValue, oldValue)) || false) {
         if (cleanup) {
           cleanup();
         }
@@ -1896,7 +1925,7 @@ function createPathGetter(ctx, path) {
   };
 }
 function traverse(value, seen) {
-  if (!isObject$2(value) || value["__v_skip"]) {
+  if (!isObject$3(value) || value["__v_skip"]) {
     return value;
   }
   seen = seen || /* @__PURE__ */ new Set();
@@ -1973,6 +2002,8 @@ function invokeDirectiveHook(vnode, prevVNode, instance, name) {
     }
   }
 }
+const leaveCbKey = Symbol("_leaveCb");
+const enterCbKey = Symbol("_enterCb");
 function useTransitionState() {
   const state = {
     isMounted: false,
@@ -2080,9 +2111,9 @@ const BaseTransitionImpl = {
               oldInnerChild
             );
             leavingVNodesCache[String(oldInnerChild.key)] = oldInnerChild;
-            el._leaveCb = () => {
+            el[leaveCbKey] = () => {
               earlyRemove();
-              el._leaveCb = void 0;
+              el[leaveCbKey] = void 0;
               delete enterHooks.delayedLeave;
             };
             enterHooks.delayedLeave = delayedLeave;
@@ -2153,14 +2184,14 @@ function resolveTransitionHooks(vnode, props2, state, instance) {
           return;
         }
       }
-      if (el._leaveCb) {
-        el._leaveCb(
+      if (el[leaveCbKey]) {
+        el[leaveCbKey](
           true
         );
       }
       const leavingVNode = leavingVNodesCache[key];
-      if (leavingVNode && isSameVNodeType(vnode, leavingVNode) && leavingVNode.el._leaveCb) {
-        leavingVNode.el._leaveCb();
+      if (leavingVNode && isSameVNodeType(vnode, leavingVNode) && leavingVNode.el[leaveCbKey]) {
+        leavingVNode.el[leaveCbKey]();
       }
       callHook2(hook, [el]);
     },
@@ -2178,7 +2209,7 @@ function resolveTransitionHooks(vnode, props2, state, instance) {
         }
       }
       let called = false;
-      const done = el._enterCb = (cancelled) => {
+      const done = el[enterCbKey] = (cancelled) => {
         if (called)
           return;
         called = true;
@@ -2190,7 +2221,7 @@ function resolveTransitionHooks(vnode, props2, state, instance) {
         if (hooks.delayedLeave) {
           hooks.delayedLeave();
         }
-        el._enterCb = void 0;
+        el[enterCbKey] = void 0;
       };
       if (hook) {
         callAsyncHook(hook, [el, done]);
@@ -2200,8 +2231,8 @@ function resolveTransitionHooks(vnode, props2, state, instance) {
     },
     leave(el, remove2) {
       const key2 = String(vnode.key);
-      if (el._enterCb) {
-        el._enterCb(
+      if (el[enterCbKey]) {
+        el[enterCbKey](
           true
         );
       }
@@ -2210,7 +2241,7 @@ function resolveTransitionHooks(vnode, props2, state, instance) {
       }
       callHook2(onBeforeLeave, [el]);
       let called = false;
-      const done = el._leaveCb = (cancelled) => {
+      const done = el[leaveCbKey] = (cancelled) => {
         if (called)
           return;
         called = true;
@@ -2220,7 +2251,7 @@ function resolveTransitionHooks(vnode, props2, state, instance) {
         } else {
           callHook2(onAfterLeave, [el]);
         }
-        el._leaveCb = void 0;
+        el[leaveCbKey] = void 0;
         if (leavingVNodesCache[key2] === vnode) {
           delete leavingVNodesCache[key2];
         }
@@ -2281,6 +2312,7 @@ function getTransitionRawChildren(children, keepComment = false, parentKey) {
   }
   return ret;
 }
+/*! #__NO_SIDE_EFFECTS__ */
 function defineComponent(options, extraOptions) {
   return isFunction$1(options) ? /* @__PURE__ */ (() => extend({ name: options.name }, extraOptions, { setup: options }))() : options;
 }
@@ -2364,38 +2396,6 @@ const onRenderTracked = createHook(
 function onErrorCaptured(hook, target = currentInstance) {
   injectHook("ec", hook, target);
 }
-const COMPONENTS = "components";
-const NULL_DYNAMIC_COMPONENT = Symbol.for("v-ndc");
-function resolveDynamicComponent(component) {
-  if (isString$1(component)) {
-    return resolveAsset(COMPONENTS, component, false) || component;
-  } else {
-    return component || NULL_DYNAMIC_COMPONENT;
-  }
-}
-function resolveAsset(type, name, warnMissing = true, maybeSelfReference = false) {
-  const instance = currentRenderingInstance || currentInstance;
-  if (instance) {
-    const Component = instance.type;
-    if (type === COMPONENTS) {
-      const selfName = getComponentName(
-        Component,
-        false
-      );
-      if (selfName && (selfName === name || selfName === camelize(name) || selfName === capitalize(camelize(name)))) {
-        return Component;
-      }
-    }
-    const res = resolve(instance[type] || Component[type], name) || resolve(instance.appContext[type], name);
-    if (!res && maybeSelfReference) {
-      return Component;
-    }
-    return res;
-  }
-}
-function resolve(registry, name) {
-  return registry && (registry[name] || registry[camelize(name)] || registry[capitalize(camelize(name))]);
-}
 function renderList(source, renderItem, cache, index) {
   let ret;
   const cached = cache && cache[index];
@@ -2409,7 +2409,7 @@ function renderList(source, renderItem, cache, index) {
     for (let i2 = 0; i2 < source; i2++) {
       ret[i2] = renderItem(i2 + 1, i2, void 0, cached && cached[i2]);
     }
-  } else if (isObject$2(source)) {
+  } else if (isObject$3(source)) {
     if (source[Symbol.iterator]) {
       ret = Array.from(
         source,
@@ -2641,7 +2641,7 @@ function applyOptions(instance) {
   }
   if (dataOptions) {
     const data = dataOptions.call(publicThis, publicThis);
-    if (!isObject$2(data))
+    if (!isObject$3(data))
       ;
     else {
       instance.data = reactive(data);
@@ -2729,7 +2729,7 @@ function resolveInjections(injectOptions, ctx, checkDuplicateProperties = NOOP) 
   for (const key in injectOptions) {
     const opt = injectOptions[key];
     let injected;
-    if (isObject$2(opt)) {
+    if (isObject$3(opt)) {
       if ("default" in opt) {
         injected = inject$1(
           opt.from || key,
@@ -2770,7 +2770,7 @@ function createWatcher(raw, ctx, publicThis, key) {
     }
   } else if (isFunction$1(raw)) {
     watch(getter, raw.bind(publicThis));
-  } else if (isObject$2(raw)) {
+  } else if (isObject$3(raw)) {
     if (isArray$3(raw)) {
       raw.forEach((r2) => createWatcher(r2, ctx, publicThis, key));
     } else {
@@ -2807,7 +2807,7 @@ function resolveMergedOptions(instance) {
     }
     mergeOptions(resolved, base, optionMergeStrategies);
   }
-  if (isObject$2(base)) {
+  if (isObject$3(base)) {
     cache.set(base, resolved);
   }
   return resolved;
@@ -2943,11 +2943,11 @@ function createAppAPI(render2, hydrate) {
     if (!isFunction$1(rootComponent)) {
       rootComponent = extend({}, rootComponent);
     }
-    if (rootProps != null && !isObject$2(rootProps)) {
+    if (rootProps != null && !isObject$3(rootProps)) {
       rootProps = null;
     }
     const context = createAppContext();
-    const installedPlugins = /* @__PURE__ */ new Set();
+    const installedPlugins = /* @__PURE__ */ new WeakSet();
     let isMounted = false;
     const app2 = context.app = {
       _uid: uid$1++,
@@ -2999,10 +2999,7 @@ function createAppAPI(render2, hydrate) {
       },
       mount(rootContainer, isHydrate, isSVG) {
         if (!isMounted) {
-          const vnode = createVNode(
-            rootComponent,
-            rootProps
-          );
+          const vnode = createVNode(rootComponent, rootProps);
           vnode.appContext = context;
           if (isHydrate && hydrate) {
             hydrate(vnode, rootContainer);
@@ -3266,7 +3263,7 @@ function normalizePropsOptions(comp, appContext, asMixin = false) {
     }
   }
   if (!raw && !hasExtends) {
-    if (isObject$2(comp)) {
+    if (isObject$3(comp)) {
       cache.set(comp, EMPTY_ARR);
     }
     return EMPTY_ARR;
@@ -3297,7 +3294,7 @@ function normalizePropsOptions(comp, appContext, asMixin = false) {
     }
   }
   const res = [normalized, needCastKeys];
-  if (isObject$2(comp)) {
+  if (isObject$3(comp)) {
     cache.set(comp, res);
   }
   return res;
@@ -3401,7 +3398,7 @@ const updateSlots = (instance, children, optimized) => {
   }
   if (needDeletionCheck) {
     for (const key in slots) {
-      if (!isInternalKey(key) && !(key in deletionComparisonTarget)) {
+      if (!isInternalKey(key) && deletionComparisonTarget[key] == null) {
         delete slots[key];
       }
     }
@@ -3737,7 +3734,7 @@ function baseCreateRenderer(options, createHydrationFns) {
     if (dirs) {
       invokeDirectiveHook(vnode, null, parentComponent, "beforeMount");
     }
-    const needCallTransitionHooks = (!parentSuspense || parentSuspense && !parentSuspense.pendingBranch) && transition && !transition.persisted;
+    const needCallTransitionHooks = needTransition(parentSuspense, transition);
     if (needCallTransitionHooks) {
       transition.beforeEnter(el);
     }
@@ -4509,8 +4506,8 @@ function baseCreateRenderer(options, createHydrationFns) {
       moveStaticNode(vnode, container, anchor);
       return;
     }
-    const needTransition = moveType !== 2 && shapeFlag & 1 && transition;
-    if (needTransition) {
+    const needTransition2 = moveType !== 2 && shapeFlag & 1 && transition;
+    if (needTransition2) {
       if (moveType === 0) {
         transition.beforeEnter(el);
         hostInsert(el, container, anchor);
@@ -4715,6 +4712,9 @@ function baseCreateRenderer(options, createHydrationFns) {
 function toggleRecurse({ effect, update }, allowed) {
   effect.allowRecurse = update.allowRecurse = allowed;
 }
+function needTransition(parentSuspense, transition) {
+  return (!parentSuspense || parentSuspense && !parentSuspense.pendingBranch) && transition && !transition.persisted;
+}
 function traverseStaticChildren(n1, n2, shallow = false) {
   const ch1 = n1.children;
   const ch22 = n2.children;
@@ -4875,6 +4875,10 @@ const TeleportImpl = {
             internals,
             1
           );
+        } else {
+          if (n2.props && n1.props && n2.props.to !== n1.props.to) {
+            n2.props.to = n1.props.to;
+          }
         }
       } else {
         if ((n2.props && n2.props.to) !== (n1.props && n1.props.to)) {
@@ -4909,19 +4913,18 @@ const TeleportImpl = {
     if (target) {
       hostRemove(targetAnchor);
     }
-    if (doRemove || !isTeleportDisabled(props2)) {
-      hostRemove(anchor);
-      if (shapeFlag & 16) {
-        for (let i2 = 0; i2 < children.length; i2++) {
-          const child = children[i2];
-          unmount(
-            child,
-            parentComponent,
-            parentSuspense,
-            true,
-            !!child.dynamicChildren
-          );
-        }
+    doRemove && hostRemove(anchor);
+    if (shapeFlag & 16) {
+      const shouldRemove = doRemove || !isTeleportDisabled(props2);
+      for (let i2 = 0; i2 < children.length; i2++) {
+        const child = children[i2];
+        unmount(
+          child,
+          parentComponent,
+          parentSuspense,
+          shouldRemove,
+          !!child.dynamicChildren
+        );
       }
     }
   },
@@ -5005,7 +5008,7 @@ function updateCssVars(vnode) {
   const ctx = vnode.ctx;
   if (ctx && ctx.ut) {
     let node = vnode.children[0].el;
-    while (node !== vnode.targetAnchor) {
+    while (node && node !== vnode.targetAnchor) {
       if (node.nodeType === 1)
         node.setAttribute("data-v-owner", ctx.uid);
       node = node.nextSibling;
@@ -5156,14 +5159,14 @@ function _createVNode(type, props2 = null, children = null, patchFlag = 0, dynam
     if (klass && !isString$1(klass)) {
       props2.class = normalizeClass(klass);
     }
-    if (isObject$2(style)) {
+    if (isObject$3(style)) {
       if (isProxy(style) && !isArray$3(style)) {
         style = extend({}, style);
       }
       props2.style = normalizeStyle(style);
     }
   }
-  const shapeFlag = isString$1(type) ? 1 : isSuspense(type) ? 128 : isTeleport(type) ? 64 : isObject$2(type) ? 4 : isFunction$1(type) ? 2 : 0;
+  const shapeFlag = isString$1(type) ? 1 : isSuspense(type) ? 128 : isTeleport(type) ? 64 : isObject$3(type) ? 4 : isFunction$1(type) ? 2 : 0;
   return createBaseVNode(
     type,
     props2,
@@ -5477,7 +5480,7 @@ function handleSetupResult(instance, setupResult, isSSR) {
     } else {
       instance.render = setupResult;
     }
-  } else if (isObject$2(setupResult)) {
+  } else if (isObject$3(setupResult)) {
     instance.setupState = proxyRefs(setupResult);
   } else
     ;
@@ -5510,9 +5513,12 @@ function finishComponentSetup(instance, isSSR, skipOptions) {
   {
     setCurrentInstance(instance);
     pauseTracking();
-    applyOptions(instance);
-    resetTracking();
-    unsetCurrentInstance();
+    try {
+      applyOptions(instance);
+    } finally {
+      resetTracking();
+      unsetCurrentInstance();
+    }
   }
 }
 function getAttrsProxy(instance) {
@@ -5569,7 +5575,7 @@ const computed = (getterOrOptions, debugOptions) => {
 function h$2(type, propsOrChildren, children) {
   const l2 = arguments.length;
   if (l2 === 2) {
-    if (isObject$2(propsOrChildren) && !isArray$3(propsOrChildren)) {
+    if (isObject$3(propsOrChildren) && !isArray$3(propsOrChildren)) {
       if (isVNode(propsOrChildren)) {
         return createVNode(type, null, [propsOrChildren]);
       }
@@ -5593,7 +5599,7 @@ const useSSRContext = () => {
     return ctx;
   }
 };
-const version = "3.3.4";
+const version = "3.3.8";
 const svgNS = "http://www.w3.org/2000/svg";
 const doc = typeof document !== "undefined" ? document : null;
 const templateContainer = doc && /* @__PURE__ */ doc.createElement("template");
@@ -5654,274 +5660,9 @@ const nodeOps = {
     ];
   }
 };
-function patchClass(el, value, isSVG) {
-  const transitionClasses = el._vtc;
-  if (transitionClasses) {
-    value = (value ? [value, ...transitionClasses] : [...transitionClasses]).join(" ");
-  }
-  if (value == null) {
-    el.removeAttribute("class");
-  } else if (isSVG) {
-    el.setAttribute("class", value);
-  } else {
-    el.className = value;
-  }
-}
-function patchStyle(el, prev, next) {
-  const style = el.style;
-  const isCssString = isString$1(next);
-  if (next && !isCssString) {
-    if (prev && !isString$1(prev)) {
-      for (const key in prev) {
-        if (next[key] == null) {
-          setStyle(style, key, "");
-        }
-      }
-    }
-    for (const key in next) {
-      setStyle(style, key, next[key]);
-    }
-  } else {
-    const currentDisplay = style.display;
-    if (isCssString) {
-      if (prev !== next) {
-        style.cssText = next;
-      }
-    } else if (prev) {
-      el.removeAttribute("style");
-    }
-    if ("_vod" in el) {
-      style.display = currentDisplay;
-    }
-  }
-}
-const importantRE = /\s*!important$/;
-function setStyle(style, name, val) {
-  if (isArray$3(val)) {
-    val.forEach((v2) => setStyle(style, name, v2));
-  } else {
-    if (val == null)
-      val = "";
-    if (name.startsWith("--")) {
-      style.setProperty(name, val);
-    } else {
-      const prefixed = autoPrefix(style, name);
-      if (importantRE.test(val)) {
-        style.setProperty(
-          hyphenate(prefixed),
-          val.replace(importantRE, ""),
-          "important"
-        );
-      } else {
-        style[prefixed] = val;
-      }
-    }
-  }
-}
-const prefixes = ["Webkit", "Moz", "ms"];
-const prefixCache = {};
-function autoPrefix(style, rawName) {
-  const cached = prefixCache[rawName];
-  if (cached) {
-    return cached;
-  }
-  let name = camelize(rawName);
-  if (name !== "filter" && name in style) {
-    return prefixCache[rawName] = name;
-  }
-  name = capitalize(name);
-  for (let i2 = 0; i2 < prefixes.length; i2++) {
-    const prefixed = prefixes[i2] + name;
-    if (prefixed in style) {
-      return prefixCache[rawName] = prefixed;
-    }
-  }
-  return rawName;
-}
-const xlinkNS = "http://www.w3.org/1999/xlink";
-function patchAttr(el, key, value, isSVG, instance) {
-  if (isSVG && key.startsWith("xlink:")) {
-    if (value == null) {
-      el.removeAttributeNS(xlinkNS, key.slice(6, key.length));
-    } else {
-      el.setAttributeNS(xlinkNS, key, value);
-    }
-  } else {
-    const isBoolean2 = isSpecialBooleanAttr(key);
-    if (value == null || isBoolean2 && !includeBooleanAttr(value)) {
-      el.removeAttribute(key);
-    } else {
-      el.setAttribute(key, isBoolean2 ? "" : value);
-    }
-  }
-}
-function patchDOMProp(el, key, value, prevChildren, parentComponent, parentSuspense, unmountChildren) {
-  if (key === "innerHTML" || key === "textContent") {
-    if (prevChildren) {
-      unmountChildren(prevChildren, parentComponent, parentSuspense);
-    }
-    el[key] = value == null ? "" : value;
-    return;
-  }
-  const tag = el.tagName;
-  if (key === "value" && tag !== "PROGRESS" && !tag.includes("-")) {
-    el._value = value;
-    const oldValue = tag === "OPTION" ? el.getAttribute("value") : el.value;
-    const newValue = value == null ? "" : value;
-    if (oldValue !== newValue) {
-      el.value = newValue;
-    }
-    if (value == null) {
-      el.removeAttribute(key);
-    }
-    return;
-  }
-  let needRemove = false;
-  if (value === "" || value == null) {
-    const type = typeof el[key];
-    if (type === "boolean") {
-      value = includeBooleanAttr(value);
-    } else if (value == null && type === "string") {
-      value = "";
-      needRemove = true;
-    } else if (type === "number") {
-      value = 0;
-      needRemove = true;
-    }
-  }
-  try {
-    el[key] = value;
-  } catch (e2) {
-  }
-  needRemove && el.removeAttribute(key);
-}
-function addEventListener(el, event, handler, options) {
-  el.addEventListener(event, handler, options);
-}
-function removeEventListener(el, event, handler, options) {
-  el.removeEventListener(event, handler, options);
-}
-function patchEvent(el, rawName, prevValue, nextValue, instance = null) {
-  const invokers = el._vei || (el._vei = {});
-  const existingInvoker = invokers[rawName];
-  if (nextValue && existingInvoker) {
-    existingInvoker.value = nextValue;
-  } else {
-    const [name, options] = parseName(rawName);
-    if (nextValue) {
-      const invoker = invokers[rawName] = createInvoker(nextValue, instance);
-      addEventListener(el, name, invoker, options);
-    } else if (existingInvoker) {
-      removeEventListener(el, name, existingInvoker, options);
-      invokers[rawName] = void 0;
-    }
-  }
-}
-const optionsModifierRE = /(?:Once|Passive|Capture)$/;
-function parseName(name) {
-  let options;
-  if (optionsModifierRE.test(name)) {
-    options = {};
-    let m2;
-    while (m2 = name.match(optionsModifierRE)) {
-      name = name.slice(0, name.length - m2[0].length);
-      options[m2[0].toLowerCase()] = true;
-    }
-  }
-  const event = name[2] === ":" ? name.slice(3) : hyphenate(name.slice(2));
-  return [event, options];
-}
-let cachedNow = 0;
-const p$5 = /* @__PURE__ */ Promise.resolve();
-const getNow = () => cachedNow || (p$5.then(() => cachedNow = 0), cachedNow = Date.now());
-function createInvoker(initialValue, instance) {
-  const invoker = (e2) => {
-    if (!e2._vts) {
-      e2._vts = Date.now();
-    } else if (e2._vts <= invoker.attached) {
-      return;
-    }
-    callWithAsyncErrorHandling(
-      patchStopImmediatePropagation(e2, invoker.value),
-      instance,
-      5,
-      [e2]
-    );
-  };
-  invoker.value = initialValue;
-  invoker.attached = getNow();
-  return invoker;
-}
-function patchStopImmediatePropagation(e2, value) {
-  if (isArray$3(value)) {
-    const originalStop = e2.stopImmediatePropagation;
-    e2.stopImmediatePropagation = () => {
-      originalStop.call(e2);
-      e2._stopped = true;
-    };
-    return value.map((fn) => (e22) => !e22._stopped && fn && fn(e22));
-  } else {
-    return value;
-  }
-}
-const nativeOnRE = /^on[a-z]/;
-const patchProp = (el, key, prevValue, nextValue, isSVG = false, prevChildren, parentComponent, parentSuspense, unmountChildren) => {
-  if (key === "class") {
-    patchClass(el, nextValue, isSVG);
-  } else if (key === "style") {
-    patchStyle(el, prevValue, nextValue);
-  } else if (isOn(key)) {
-    if (!isModelListener(key)) {
-      patchEvent(el, key, prevValue, nextValue, parentComponent);
-    }
-  } else if (key[0] === "." ? (key = key.slice(1), true) : key[0] === "^" ? (key = key.slice(1), false) : shouldSetAsProp(el, key, nextValue, isSVG)) {
-    patchDOMProp(
-      el,
-      key,
-      nextValue,
-      prevChildren,
-      parentComponent,
-      parentSuspense,
-      unmountChildren
-    );
-  } else {
-    if (key === "true-value") {
-      el._trueValue = nextValue;
-    } else if (key === "false-value") {
-      el._falseValue = nextValue;
-    }
-    patchAttr(el, key, nextValue, isSVG);
-  }
-};
-function shouldSetAsProp(el, key, value, isSVG) {
-  if (isSVG) {
-    if (key === "innerHTML" || key === "textContent") {
-      return true;
-    }
-    if (key in el && nativeOnRE.test(key) && isFunction$1(value)) {
-      return true;
-    }
-    return false;
-  }
-  if (key === "spellcheck" || key === "draggable" || key === "translate") {
-    return false;
-  }
-  if (key === "form") {
-    return false;
-  }
-  if (key === "list" && el.tagName === "INPUT") {
-    return false;
-  }
-  if (key === "type" && el.tagName === "TEXTAREA") {
-    return false;
-  }
-  if (nativeOnRE.test(key) && isString$1(value)) {
-    return false;
-  }
-  return key in el;
-}
 const TRANSITION = "transition";
 const ANIMATION = "animation";
+const vtcKey = Symbol("_vtc");
 const Transition = (props2, { slots }) => h$2(BaseTransition, resolveTransitionProps(props2), slots);
 Transition.displayName = "Transition";
 const DOMTransitionPropsValidators = {
@@ -6068,7 +5809,7 @@ function resolveTransitionProps(rawProps) {
 function normalizeDuration(duration) {
   if (duration == null) {
     return null;
-  } else if (isObject$2(duration)) {
+  } else if (isObject$3(duration)) {
     return [NumberOf(duration.enter), NumberOf(duration.leave)];
   } else {
     const n2 = NumberOf(duration);
@@ -6081,15 +5822,15 @@ function NumberOf(val) {
 }
 function addTransitionClass(el, cls) {
   cls.split(/\s+/).forEach((c2) => c2 && el.classList.add(c2));
-  (el._vtc || (el._vtc = /* @__PURE__ */ new Set())).add(cls);
+  (el[vtcKey] || (el[vtcKey] = /* @__PURE__ */ new Set())).add(cls);
 }
 function removeTransitionClass(el, cls) {
   cls.split(/\s+/).forEach((c2) => c2 && el.classList.remove(c2));
-  const { _vtc } = el;
+  const _vtc = el[vtcKey];
   if (_vtc) {
     _vtc.delete(cls);
     if (!_vtc.size) {
-      el._vtc = void 0;
+      el[vtcKey] = void 0;
     }
   }
 }
@@ -6177,10 +5918,280 @@ function getTimeout(delays, durations) {
   return Math.max(...durations.map((d2, i2) => toMs(d2) + toMs(delays[i2])));
 }
 function toMs(s2) {
+  if (s2 === "auto")
+    return 0;
   return Number(s2.slice(0, -1).replace(",", ".")) * 1e3;
 }
 function forceReflow() {
   return document.body.offsetHeight;
+}
+function patchClass(el, value, isSVG) {
+  const transitionClasses = el[vtcKey];
+  if (transitionClasses) {
+    value = (value ? [value, ...transitionClasses] : [...transitionClasses]).join(" ");
+  }
+  if (value == null) {
+    el.removeAttribute("class");
+  } else if (isSVG) {
+    el.setAttribute("class", value);
+  } else {
+    el.className = value;
+  }
+}
+const vShowOldKey = Symbol("_vod");
+function patchStyle(el, prev, next) {
+  const style = el.style;
+  const isCssString = isString$1(next);
+  if (next && !isCssString) {
+    if (prev && !isString$1(prev)) {
+      for (const key in prev) {
+        if (next[key] == null) {
+          setStyle(style, key, "");
+        }
+      }
+    }
+    for (const key in next) {
+      setStyle(style, key, next[key]);
+    }
+  } else {
+    const currentDisplay = style.display;
+    if (isCssString) {
+      if (prev !== next) {
+        style.cssText = next;
+      }
+    } else if (prev) {
+      el.removeAttribute("style");
+    }
+    if (vShowOldKey in el) {
+      style.display = currentDisplay;
+    }
+  }
+}
+const importantRE = /\s*!important$/;
+function setStyle(style, name, val) {
+  if (isArray$3(val)) {
+    val.forEach((v2) => setStyle(style, name, v2));
+  } else {
+    if (val == null)
+      val = "";
+    if (name.startsWith("--")) {
+      style.setProperty(name, val);
+    } else {
+      const prefixed = autoPrefix(style, name);
+      if (importantRE.test(val)) {
+        style.setProperty(
+          hyphenate(prefixed),
+          val.replace(importantRE, ""),
+          "important"
+        );
+      } else {
+        style[prefixed] = val;
+      }
+    }
+  }
+}
+const prefixes = ["Webkit", "Moz", "ms"];
+const prefixCache = {};
+function autoPrefix(style, rawName) {
+  const cached = prefixCache[rawName];
+  if (cached) {
+    return cached;
+  }
+  let name = camelize(rawName);
+  if (name !== "filter" && name in style) {
+    return prefixCache[rawName] = name;
+  }
+  name = capitalize(name);
+  for (let i2 = 0; i2 < prefixes.length; i2++) {
+    const prefixed = prefixes[i2] + name;
+    if (prefixed in style) {
+      return prefixCache[rawName] = prefixed;
+    }
+  }
+  return rawName;
+}
+const xlinkNS = "http://www.w3.org/1999/xlink";
+function patchAttr(el, key, value, isSVG, instance) {
+  if (isSVG && key.startsWith("xlink:")) {
+    if (value == null) {
+      el.removeAttributeNS(xlinkNS, key.slice(6, key.length));
+    } else {
+      el.setAttributeNS(xlinkNS, key, value);
+    }
+  } else {
+    const isBoolean2 = isSpecialBooleanAttr(key);
+    if (value == null || isBoolean2 && !includeBooleanAttr(value)) {
+      el.removeAttribute(key);
+    } else {
+      el.setAttribute(key, isBoolean2 ? "" : value);
+    }
+  }
+}
+function patchDOMProp(el, key, value, prevChildren, parentComponent, parentSuspense, unmountChildren) {
+  if (key === "innerHTML" || key === "textContent") {
+    if (prevChildren) {
+      unmountChildren(prevChildren, parentComponent, parentSuspense);
+    }
+    el[key] = value == null ? "" : value;
+    return;
+  }
+  const tag = el.tagName;
+  if (key === "value" && tag !== "PROGRESS" && !tag.includes("-")) {
+    el._value = value;
+    const oldValue = tag === "OPTION" ? el.getAttribute("value") : el.value;
+    const newValue = value == null ? "" : value;
+    if (oldValue !== newValue) {
+      el.value = newValue;
+    }
+    if (value == null) {
+      el.removeAttribute(key);
+    }
+    return;
+  }
+  let needRemove = false;
+  if (value === "" || value == null) {
+    const type = typeof el[key];
+    if (type === "boolean") {
+      value = includeBooleanAttr(value);
+    } else if (value == null && type === "string") {
+      value = "";
+      needRemove = true;
+    } else if (type === "number") {
+      value = 0;
+      needRemove = true;
+    }
+  }
+  try {
+    el[key] = value;
+  } catch (e2) {
+  }
+  needRemove && el.removeAttribute(key);
+}
+function addEventListener(el, event, handler, options) {
+  el.addEventListener(event, handler, options);
+}
+function removeEventListener(el, event, handler, options) {
+  el.removeEventListener(event, handler, options);
+}
+const veiKey = Symbol("_vei");
+function patchEvent(el, rawName, prevValue, nextValue, instance = null) {
+  const invokers = el[veiKey] || (el[veiKey] = {});
+  const existingInvoker = invokers[rawName];
+  if (nextValue && existingInvoker) {
+    existingInvoker.value = nextValue;
+  } else {
+    const [name, options] = parseName(rawName);
+    if (nextValue) {
+      const invoker = invokers[rawName] = createInvoker(nextValue, instance);
+      addEventListener(el, name, invoker, options);
+    } else if (existingInvoker) {
+      removeEventListener(el, name, existingInvoker, options);
+      invokers[rawName] = void 0;
+    }
+  }
+}
+const optionsModifierRE = /(?:Once|Passive|Capture)$/;
+function parseName(name) {
+  let options;
+  if (optionsModifierRE.test(name)) {
+    options = {};
+    let m2;
+    while (m2 = name.match(optionsModifierRE)) {
+      name = name.slice(0, name.length - m2[0].length);
+      options[m2[0].toLowerCase()] = true;
+    }
+  }
+  const event = name[2] === ":" ? name.slice(3) : hyphenate(name.slice(2));
+  return [event, options];
+}
+let cachedNow = 0;
+const p$4 = /* @__PURE__ */ Promise.resolve();
+const getNow = () => cachedNow || (p$4.then(() => cachedNow = 0), cachedNow = Date.now());
+function createInvoker(initialValue, instance) {
+  const invoker = (e2) => {
+    if (!e2._vts) {
+      e2._vts = Date.now();
+    } else if (e2._vts <= invoker.attached) {
+      return;
+    }
+    callWithAsyncErrorHandling(
+      patchStopImmediatePropagation(e2, invoker.value),
+      instance,
+      5,
+      [e2]
+    );
+  };
+  invoker.value = initialValue;
+  invoker.attached = getNow();
+  return invoker;
+}
+function patchStopImmediatePropagation(e2, value) {
+  if (isArray$3(value)) {
+    const originalStop = e2.stopImmediatePropagation;
+    e2.stopImmediatePropagation = () => {
+      originalStop.call(e2);
+      e2._stopped = true;
+    };
+    return value.map((fn) => (e22) => !e22._stopped && fn && fn(e22));
+  } else {
+    return value;
+  }
+}
+const nativeOnRE = /^on[a-z]/;
+const patchProp = (el, key, prevValue, nextValue, isSVG = false, prevChildren, parentComponent, parentSuspense, unmountChildren) => {
+  if (key === "class") {
+    patchClass(el, nextValue, isSVG);
+  } else if (key === "style") {
+    patchStyle(el, prevValue, nextValue);
+  } else if (isOn(key)) {
+    if (!isModelListener(key)) {
+      patchEvent(el, key, prevValue, nextValue, parentComponent);
+    }
+  } else if (key[0] === "." ? (key = key.slice(1), true) : key[0] === "^" ? (key = key.slice(1), false) : shouldSetAsProp(el, key, nextValue, isSVG)) {
+    patchDOMProp(
+      el,
+      key,
+      nextValue,
+      prevChildren,
+      parentComponent,
+      parentSuspense,
+      unmountChildren
+    );
+  } else {
+    if (key === "true-value") {
+      el._trueValue = nextValue;
+    } else if (key === "false-value") {
+      el._falseValue = nextValue;
+    }
+    patchAttr(el, key, nextValue, isSVG);
+  }
+};
+function shouldSetAsProp(el, key, value, isSVG) {
+  if (isSVG) {
+    if (key === "innerHTML" || key === "textContent") {
+      return true;
+    }
+    if (key in el && nativeOnRE.test(key) && isFunction$1(value)) {
+      return true;
+    }
+    return false;
+  }
+  if (key === "spellcheck" || key === "draggable" || key === "translate") {
+    return false;
+  }
+  if (key === "form") {
+    return false;
+  }
+  if (key === "list" && el.tagName === "INPUT") {
+    return false;
+  }
+  if (key === "type" && el.tagName === "TEXTAREA") {
+    return false;
+  }
+  if (nativeOnRE.test(key) && isString$1(value)) {
+    return false;
+  }
+  return key in el;
 }
 const getModelAssigner = (vnode) => {
   const fn = vnode.props["onUpdate:modelValue"] || false;
@@ -6196,9 +6207,10 @@ function onCompositionEnd(e2) {
     target.dispatchEvent(new Event("input"));
   }
 }
+const assignKey = Symbol("_assign");
 const vModelText = {
   created(el, { modifiers: { lazy, trim, number } }, vnode) {
-    el._assign = getModelAssigner(vnode);
+    el[assignKey] = getModelAssigner(vnode);
     const castToNumber = number || vnode.props && vnode.props.type === "number";
     addEventListener(el, lazy ? "change" : "input", (e2) => {
       if (e2.target.composing)
@@ -6210,7 +6222,7 @@ const vModelText = {
       if (castToNumber) {
         domValue = looseToNumber(domValue);
       }
-      el._assign(domValue);
+      el[assignKey](domValue);
     });
     if (trim) {
       addEventListener(el, "change", () => {
@@ -6227,7 +6239,7 @@ const vModelText = {
     el.value = value == null ? "" : value;
   },
   beforeUpdate(el, { value, modifiers: { lazy, trim, number } }, vnode) {
-    el._assign = getModelAssigner(vnode);
+    el[assignKey] = getModelAssigner(vnode);
     if (el.composing)
       return;
     if (document.activeElement === el && el.type !== "range") {
@@ -6288,25 +6300,25 @@ function u$4(r2, n2, ...a2) {
   let t2 = new Error(`Tried to handle "${r2}" but there is no handler defined. Only defined handlers are: ${Object.keys(n2).map((e2) => `"${e2}"`).join(", ")}.`);
   throw Error.captureStackTrace && Error.captureStackTrace(t2, u$4), t2;
 }
-var N$3 = ((o2) => (o2[o2.None = 0] = "None", o2[o2.RenderStrategy = 1] = "RenderStrategy", o2[o2.Static = 2] = "Static", o2))(N$3 || {}), S$2 = ((e2) => (e2[e2.Unmount = 0] = "Unmount", e2[e2.Hidden = 1] = "Hidden", e2))(S$2 || {});
+var N$4 = ((o2) => (o2[o2.None = 0] = "None", o2[o2.RenderStrategy = 1] = "RenderStrategy", o2[o2.Static = 2] = "Static", o2))(N$4 || {}), S$2 = ((e2) => (e2[e2.Unmount = 0] = "Unmount", e2[e2.Hidden = 1] = "Hidden", e2))(S$2 || {});
 function H$1({ visible: r2 = true, features: t2 = 0, ourProps: e2, theirProps: o2, ...i2 }) {
   var a2;
-  let n2 = j$2(o2, e2), l2 = Object.assign(i2, { props: n2 });
+  let n2 = j$1(o2, e2), l2 = Object.assign(i2, { props: n2 });
   if (r2 || t2 & 2 && n2.static)
-    return y$1(l2);
+    return y$2(l2);
   if (t2 & 1) {
     let d2 = (a2 = n2.unmount) == null || a2 ? 0 : 1;
     return u$4(d2, { [0]() {
       return null;
     }, [1]() {
-      return y$1({ ...i2, props: { ...n2, hidden: true, style: { display: "none" } } });
+      return y$2({ ...i2, props: { ...n2, hidden: true, style: { display: "none" } } });
     } });
   }
-  return y$1(l2);
+  return y$2(l2);
 }
-function y$1({ props: r2, attrs: t2, slots: e2, slot: o2, name: i2 }) {
+function y$2({ props: r2, attrs: t2, slots: e2, slot: o2, name: i2 }) {
   var m2, h2;
-  let { as: n2, ...l2 } = T$1(r2, ["unmount", "static"]), a2 = (m2 = e2.default) == null ? void 0 : m2.call(e2, o2), d2 = {};
+  let { as: n2, ...l2 } = T$2(r2, ["unmount", "static"]), a2 = (m2 = e2.default) == null ? void 0 : m2.call(e2, o2), d2 = {};
   if (o2) {
     let u2 = false, c2 = [];
     for (let [p2, f2] of Object.entries(o2))
@@ -6321,7 +6333,7 @@ function y$1({ props: r2, attrs: t2, slots: e2, slot: o2, name: i2 }) {
 `), "", "You can apply a few solutions:", ['Add an `as="..."` prop, to ensure that we render an actual element instead of a "template".', "Render a single element as the child so that we can forward the props onto that element."].map((s2) => `  - ${s2}`).join(`
 `)].join(`
 `));
-      let p2 = j$2((h2 = u2.props) != null ? h2 : {}, l2), f2 = cloneVNode(u2, p2);
+      let p2 = j$1((h2 = u2.props) != null ? h2 : {}, l2), f2 = cloneVNode(u2, p2);
       for (let s2 in p2)
         s2.startsWith("on") && (f2.props || (f2.props = {}), f2.props[s2] = p2[s2]);
       return f2;
@@ -6333,7 +6345,7 @@ function y$1({ props: r2, attrs: t2, slots: e2, slot: o2, name: i2 }) {
 function b$2(r2) {
   return r2.flatMap((t2) => t2.type === Fragment ? b$2(t2.children) : [t2]);
 }
-function j$2(...r2) {
+function j$1(...r2) {
   if (r2.length === 0)
     return {};
   if (r2.length === 1)
@@ -6355,7 +6367,7 @@ function j$2(...r2) {
     } });
   return t2;
 }
-function T$1(r2, t2 = []) {
+function T$2(r2, t2 = []) {
   let e2 = Object.assign({}, r2);
   for (let o2 of t2)
     o2 in e2 && delete e2[o2];
@@ -6371,23 +6383,23 @@ function n$4() {
 function t$5() {
   return n$4();
 }
-var o$2 = ((r2) => (r2.Space = " ", r2.Enter = "Enter", r2.Escape = "Escape", r2.Backspace = "Backspace", r2.Delete = "Delete", r2.ArrowLeft = "ArrowLeft", r2.ArrowUp = "ArrowUp", r2.ArrowRight = "ArrowRight", r2.ArrowDown = "ArrowDown", r2.Home = "Home", r2.End = "End", r2.PageUp = "PageUp", r2.PageDown = "PageDown", r2.Tab = "Tab", r2))(o$2 || {});
-function o$1(n2) {
+var o$3 = ((r2) => (r2.Space = " ", r2.Enter = "Enter", r2.Escape = "Escape", r2.Backspace = "Backspace", r2.Delete = "Delete", r2.ArrowLeft = "ArrowLeft", r2.ArrowUp = "ArrowUp", r2.ArrowRight = "ArrowRight", r2.ArrowDown = "ArrowDown", r2.Home = "Home", r2.End = "End", r2.PageUp = "PageUp", r2.PageDown = "PageDown", r2.Tab = "Tab", r2))(o$3 || {});
+function o$2(n2) {
   var l2;
   return n2 == null || n2.value == null ? null : (l2 = n2.value.$el) != null ? l2 : n2.value;
 }
 let n$3 = Symbol("Context");
 var l$2 = ((e2) => (e2[e2.Open = 1] = "Open", e2[e2.Closed = 2] = "Closed", e2[e2.Closing = 4] = "Closing", e2[e2.Opening = 8] = "Opening", e2))(l$2 || {});
 function C$1() {
-  return p$4() !== null;
+  return p$3() !== null;
 }
-function p$4() {
+function p$3() {
   return inject$1(n$3, null);
 }
 function c$4(o2) {
   provide(n$3, o2);
 }
-function r$2(t2, e2) {
+function r$1(t2, e2) {
   if (t2)
     return t2;
   let n2 = e2 != null ? e2 : "button";
@@ -6395,12 +6407,12 @@ function r$2(t2, e2) {
     return "button";
 }
 function b$1(t2, e2) {
-  let n2 = ref(r$2(t2.value.type, t2.value.as));
+  let n2 = ref(r$1(t2.value.type, t2.value.as));
   return onMounted(() => {
-    n2.value = r$2(t2.value.type, t2.value.as);
+    n2.value = r$1(t2.value.type, t2.value.as);
   }), watchEffect(() => {
     var o2;
-    n2.value || o$1(e2) && o$1(e2) instanceof HTMLButtonElement && !((o2 = o$1(e2)) != null && o2.hasAttribute("type")) && (n2.value = "button");
+    n2.value || o$2(e2) && o$2(e2) instanceof HTMLButtonElement && !((o2 = o$2(e2)) != null && o2.hasAttribute("type")) && (n2.value = "button");
   }), n2;
 }
 var i$2 = Object.defineProperty;
@@ -6437,19 +6449,19 @@ function m$3(r2) {
   if (r2 instanceof Node)
     return r2.ownerDocument;
   if (r2 != null && r2.hasOwnProperty("value")) {
-    let n2 = o$1(r2);
+    let n2 = o$2(r2);
     if (n2)
       return n2.ownerDocument;
   }
   return document;
 }
 let c$2 = ["[contentEditable=true]", "[tabindex]", "a[href]", "area[href]", "button:not([disabled])", "iframe", "input:not([disabled])", "select:not([disabled])", "textarea:not([disabled])"].map((e2) => `${e2}:not([tabindex='-1'])`).join(",");
-var N$2 = ((n2) => (n2[n2.First = 1] = "First", n2[n2.Previous = 2] = "Previous", n2[n2.Next = 4] = "Next", n2[n2.Last = 8] = "Last", n2[n2.WrapAround = 16] = "WrapAround", n2[n2.NoScroll = 32] = "NoScroll", n2))(N$2 || {}), T = ((o2) => (o2[o2.Error = 0] = "Error", o2[o2.Overflow = 1] = "Overflow", o2[o2.Success = 2] = "Success", o2[o2.Underflow = 3] = "Underflow", o2))(T || {}), F$3 = ((t2) => (t2[t2.Previous = -1] = "Previous", t2[t2.Next = 1] = "Next", t2))(F$3 || {});
+var N$3 = ((n2) => (n2[n2.First = 1] = "First", n2[n2.Previous = 2] = "Previous", n2[n2.Next = 4] = "Next", n2[n2.Last = 8] = "Last", n2[n2.WrapAround = 16] = "WrapAround", n2[n2.NoScroll = 32] = "NoScroll", n2))(N$3 || {}), T$1 = ((o2) => (o2[o2.Error = 0] = "Error", o2[o2.Overflow = 1] = "Overflow", o2[o2.Success = 2] = "Success", o2[o2.Underflow = 3] = "Underflow", o2))(T$1 || {}), F$2 = ((t2) => (t2[t2.Previous = -1] = "Previous", t2[t2.Next = 1] = "Next", t2))(F$2 || {});
 function E$4(e2 = document.body) {
   return e2 == null ? [] : Array.from(e2.querySelectorAll(c$2)).sort((r2, t2) => Math.sign((r2.tabIndex || Number.MAX_SAFE_INTEGER) - (t2.tabIndex || Number.MAX_SAFE_INTEGER)));
 }
 var h$1 = ((t2) => (t2[t2.Strict = 0] = "Strict", t2[t2.Loose = 1] = "Loose", t2))(h$1 || {});
-function w$1(e2, r2 = 0) {
+function w$2(e2, r2 = 0) {
   var t2;
   return e2 === ((t2 = m$3(e2)) == null ? void 0 : t2.body) ? false : u$4(r2, { [0]() {
     return e2.matches(c$2);
@@ -6463,7 +6475,7 @@ function w$1(e2, r2 = 0) {
     return false;
   } });
 }
-var y = ((t2) => (t2[t2.Keyboard = 0] = "Keyboard", t2[t2.Mouse = 1] = "Mouse", t2))(y || {});
+var y$1 = ((t2) => (t2[t2.Keyboard = 0] = "Keyboard", t2[t2.Mouse = 1] = "Mouse", t2))(y$1 || {});
 typeof window != "undefined" && typeof document != "undefined" && (document.addEventListener("keydown", (e2) => {
   e2.metaKey || e2.altKey || e2.ctrlKey || (document.documentElement.dataset.headlessuiFocusVisible = "");
 }, true), document.addEventListener("click", (e2) => {
@@ -6477,7 +6489,7 @@ function I(e2) {
   var r2, t2;
   return (t2 = (r2 = e2 == null ? void 0 : e2.matches) == null ? void 0 : r2.call(e2, H)) != null ? t2 : false;
 }
-function O(e2, r2 = (t2) => t2) {
+function O$1(e2, r2 = (t2) => t2) {
   return e2.slice().sort((t2, l2) => {
     let o2 = r2(t2), i2 = r2(l2);
     if (o2 === null || i2 === null)
@@ -6488,7 +6500,7 @@ function O(e2, r2 = (t2) => t2) {
 }
 function P$1(e2, r2, { sorted: t2 = true, relativeTo: l2 = null, skipElements: o2 = [] } = {}) {
   var m2;
-  let i2 = (m2 = Array.isArray(e2) ? e2.length > 0 ? e2[0].ownerDocument : document : e2 == null ? void 0 : e2.ownerDocument) != null ? m2 : document, n2 = Array.isArray(e2) ? t2 ? O(e2) : e2 : E$4(e2);
+  let i2 = (m2 = Array.isArray(e2) ? e2.length > 0 ? e2[0].ownerDocument : document : e2 == null ? void 0 : e2.ownerDocument) != null ? m2 : document, n2 = Array.isArray(e2) ? t2 ? O$1(e2) : e2 : E$4(e2);
   o2.length > 0 && n2.length > 1 && (n2 = n2.filter((s2) => !o2.includes(s2))), l2 = l2 != null ? l2 : i2.activeElement;
   let x2 = (() => {
     if (r2 & 5)
@@ -6528,37 +6540,40 @@ function u$3(e2, t2, n2) {
     document.addEventListener(e2, t2, n2), o2(() => document.removeEventListener(e2, t2, n2));
   });
 }
-function w(e2, n2, t2) {
+function w$1(e2, n2, t2) {
   c$3.isServer || watchEffect((o2) => {
     window.addEventListener(e2, n2, t2), o2(() => window.removeEventListener(e2, n2, t2));
   });
 }
-function F$2(f2, m2, l2 = computed(() => true)) {
-  function i2(e2, u2) {
-    if (!l2.value || e2.defaultPrevented)
+function y(f2, c2, i2 = computed(() => true)) {
+  function a2(e2, r2) {
+    if (!i2.value || e2.defaultPrevented)
       return;
-    let n2 = u2(e2);
-    if (n2 === null || !n2.getRootNode().contains(n2))
+    let t2 = r2(e2);
+    if (t2 === null || !t2.getRootNode().contains(t2))
       return;
-    let c2 = function o2(t2) {
-      return typeof t2 == "function" ? o2(t2()) : Array.isArray(t2) || t2 instanceof Set ? t2 : [t2];
+    let m2 = function o2(n2) {
+      return typeof n2 == "function" ? o2(n2()) : Array.isArray(n2) || n2 instanceof Set ? n2 : [n2];
     }(f2);
-    for (let o2 of c2) {
+    for (let o2 of m2) {
       if (o2 === null)
         continue;
-      let t2 = o2 instanceof HTMLElement ? o2 : o$1(o2);
-      if (t2 != null && t2.contains(n2) || e2.composed && e2.composedPath().includes(t2))
+      let n2 = o2 instanceof HTMLElement ? o2 : o$2(o2);
+      if (n2 != null && n2.contains(t2) || e2.composed && e2.composedPath().includes(n2))
         return;
     }
-    return !w$1(n2, h$1.Loose) && n2.tabIndex !== -1 && e2.preventDefault(), m2(e2, n2);
+    return !w$2(t2, h$1.Loose) && t2.tabIndex !== -1 && e2.preventDefault(), c2(e2, t2);
   }
-  let r2 = ref(null);
-  u$3("mousedown", (e2) => {
-    var u2, n2;
-    l2.value && (r2.value = ((n2 = (u2 = e2.composedPath) == null ? void 0 : u2.call(e2)) == null ? void 0 : n2[0]) || e2.target);
+  let u2 = ref(null);
+  u$3("pointerdown", (e2) => {
+    var r2, t2;
+    i2.value && (u2.value = ((t2 = (r2 = e2.composedPath) == null ? void 0 : r2.call(e2)) == null ? void 0 : t2[0]) || e2.target);
+  }, true), u$3("mousedown", (e2) => {
+    var r2, t2;
+    i2.value && (u2.value = ((t2 = (r2 = e2.composedPath) == null ? void 0 : r2.call(e2)) == null ? void 0 : t2[0]) || e2.target);
   }, true), u$3("click", (e2) => {
-    r2.value && (i2(e2, () => r2.value), r2.value = null);
-  }, true), w("blur", (e2) => i2(e2, () => window.document.activeElement instanceof HTMLIFrameElement ? window.document.activeElement : null), true);
+    u2.value && (a2(e2, () => u2.value), u2.value = null);
+  }, true), u$3("touchend", (e2) => a2(e2, () => e2.target instanceof HTMLElement ? e2.target : null), true), w$1("blur", (e2) => a2(e2, () => window.document.activeElement instanceof HTMLIFrameElement ? window.document.activeElement : null), true);
 }
 var a$2 = ((e2) => (e2[e2.None = 1] = "None", e2[e2.Focusable = 2] = "Focusable", e2[e2.Hidden = 4] = "Hidden", e2))(a$2 || {});
 let f$1 = defineComponent({ name: "Hidden", props: { as: { type: [Object, String], default: "div" }, features: { type: Number, default: 1 } }, setup(r2, { slots: t2, attrs: d2 }) {
@@ -6570,9 +6585,14 @@ let f$1 = defineComponent({ name: "Hidden", props: { as: { type: [Object, String
 function t$4() {
   return /iPhone/gi.test(window.navigator.platform) || /Mac/gi.test(window.navigator.platform) && window.navigator.maxTouchPoints > 0;
 }
-function r$1() {
-  let n2 = [], s2 = { addEventListener(e2, t2, i2, a2) {
-    return e2.addEventListener(t2, i2, a2), s2.add(() => e2.removeEventListener(t2, i2, a2));
+function t$3(e2) {
+  typeof queueMicrotask == "function" ? queueMicrotask(e2) : Promise.resolve().then(e2).catch((o2) => setTimeout(() => {
+    throw o2;
+  }));
+}
+function o$1() {
+  let a2 = [], s2 = { addEventListener(e2, t2, r2, i2) {
+    return e2.addEventListener(t2, r2, i2), s2.add(() => e2.removeEventListener(t2, r2, i2));
   }, requestAnimationFrame(...e2) {
     let t2 = requestAnimationFrame(...e2);
     s2.add(() => cancelAnimationFrame(t2));
@@ -6583,23 +6603,30 @@ function r$1() {
   }, setTimeout(...e2) {
     let t2 = setTimeout(...e2);
     s2.add(() => clearTimeout(t2));
-  }, style(e2, t2, i2) {
-    let a2 = e2.style.getPropertyValue(t2);
-    return Object.assign(e2.style, { [t2]: i2 }), this.add(() => {
-      Object.assign(e2.style, { [t2]: a2 });
+  }, microTask(...e2) {
+    let t2 = { current: true };
+    return t$3(() => {
+      t2.current && e2[0]();
+    }), s2.add(() => {
+      t2.current = false;
+    });
+  }, style(e2, t2, r2) {
+    let i2 = e2.style.getPropertyValue(t2);
+    return Object.assign(e2.style, { [t2]: r2 }), this.add(() => {
+      Object.assign(e2.style, { [t2]: i2 });
     });
   }, group(e2) {
-    let t2 = r$1();
+    let t2 = o$1();
     return e2(t2), this.add(() => t2.dispose());
   }, add(e2) {
-    return n2.push(e2), () => {
-      let t2 = n2.indexOf(e2);
+    return a2.push(e2), () => {
+      let t2 = a2.indexOf(e2);
       if (t2 >= 0)
-        for (let i2 of n2.splice(t2, 1))
-          i2();
+        for (let r2 of a2.splice(t2, 1))
+          r2();
     };
   }, dispose() {
-    for (let e2 of n2.splice(0))
+    for (let e2 of a2.splice(0))
       e2();
   } };
   return s2;
@@ -6607,7 +6634,7 @@ function r$1() {
 var d$3 = ((r2) => (r2[r2.Forwards = 0] = "Forwards", r2[r2.Backwards = 1] = "Backwards", r2))(d$3 || {});
 function n$1() {
   let o2 = ref(0);
-  return w("keydown", (e2) => {
+  return w$1("keydown", (e2) => {
     e2.key === "Tab" && (o2.value = e2.shiftKey ? 1 : 0);
   }), o2;
 }
@@ -6616,47 +6643,42 @@ function E$3(n2, e2, o2, r2) {
     n2 = n2 != null ? n2 : window, n2.addEventListener(e2, o2, r2), t2(() => n2.removeEventListener(e2, o2, r2));
   });
 }
-function t$3(e2) {
-  typeof queueMicrotask == "function" ? queueMicrotask(e2) : Promise.resolve().then(e2).catch((o2) => setTimeout(() => {
-    throw o2;
-  }));
-}
 function t$2(n2) {
   function e2() {
     document.readyState !== "loading" && (n2(), document.removeEventListener("DOMContentLoaded", e2));
   }
   typeof window != "undefined" && typeof document != "undefined" && (document.addEventListener("DOMContentLoaded", e2), e2());
 }
-function B$1(e2) {
+function B(e2) {
   if (!e2)
     return /* @__PURE__ */ new Set();
   if (typeof e2 == "function")
     return new Set(e2());
   let t2 = /* @__PURE__ */ new Set();
   for (let l2 of e2.value) {
-    let o2 = o$1(l2);
+    let o2 = o$2(l2);
     o2 instanceof HTMLElement && t2.add(o2);
   }
   return t2;
 }
-var A$1 = ((n2) => (n2[n2.None = 1] = "None", n2[n2.InitialFocus = 2] = "InitialFocus", n2[n2.TabLock = 4] = "TabLock", n2[n2.FocusLock = 8] = "FocusLock", n2[n2.RestoreFocus = 16] = "RestoreFocus", n2[n2.All = 30] = "All", n2))(A$1 || {});
+var A = ((n2) => (n2[n2.None = 1] = "None", n2[n2.InitialFocus = 2] = "InitialFocus", n2[n2.TabLock = 4] = "TabLock", n2[n2.FocusLock = 8] = "FocusLock", n2[n2.RestoreFocus = 16] = "RestoreFocus", n2[n2.All = 30] = "All", n2))(A || {});
 let ce$1 = Object.assign(defineComponent({ name: "FocusTrap", props: { as: { type: [Object, String], default: "div" }, initialFocus: { type: Object, default: null }, features: { type: Number, default: 30 }, containers: { type: [Object, Function], default: ref(/* @__PURE__ */ new Set()) } }, inheritAttrs: false, setup(e2, { attrs: t2, slots: l2, expose: o2 }) {
   let r2 = ref(null);
   o2({ el: r2, $el: r2 });
   let i2 = computed(() => m$3(r2)), n2 = ref(false);
   onMounted(() => n2.value = true), onUnmounted(() => n2.value = false), z({ ownerDocument: i2 }, computed(() => n2.value && Boolean(e2.features & 16)));
   let m2 = J({ ownerDocument: i2, container: r2, initialFocus: computed(() => e2.initialFocus) }, computed(() => n2.value && Boolean(e2.features & 2)));
-  Q$2({ ownerDocument: i2, container: r2, containers: e2.containers, previousActiveElement: m2 }, computed(() => n2.value && Boolean(e2.features & 8)));
+  Q$1({ ownerDocument: i2, container: r2, containers: e2.containers, previousActiveElement: m2 }, computed(() => n2.value && Boolean(e2.features & 8)));
   let c2 = n$1();
   function u2(a2) {
-    let d2 = o$1(r2);
+    let d2 = o$2(r2);
     if (!d2)
       return;
     ((g2) => g2())(() => {
       u$4(c2.value, { [d$3.Forwards]: () => {
-        P$1(d2, N$2.First, { skipElements: [a2.relatedTarget] });
+        P$1(d2, N$3.First, { skipElements: [a2.relatedTarget] });
       }, [d$3.Backwards]: () => {
-        P$1(d2, N$2.Last, { skipElements: [a2.relatedTarget] });
+        P$1(d2, N$3.Last, { skipElements: [a2.relatedTarget] });
       } });
     });
   }
@@ -6669,23 +6691,23 @@ let ce$1 = Object.assign(defineComponent({ name: "FocusTrap", props: { as: { typ
   function M2(a2) {
     if (!n2.value)
       return;
-    let d2 = B$1(e2.containers);
-    o$1(r2) instanceof HTMLElement && d2.add(o$1(r2));
+    let d2 = B(e2.containers);
+    o$2(r2) instanceof HTMLElement && d2.add(o$2(r2));
     let E2 = a2.relatedTarget;
-    E2 instanceof HTMLElement && E2.dataset.headlessuiFocusGuard !== "true" && (N$1(d2, E2) || (s2.value ? P$1(o$1(r2), u$4(c2.value, { [d$3.Forwards]: () => N$2.Next, [d$3.Backwards]: () => N$2.Previous }) | N$2.WrapAround, { relativeTo: a2.target }) : a2.target instanceof HTMLElement && S$1(a2.target)));
+    E2 instanceof HTMLElement && E2.dataset.headlessuiFocusGuard !== "true" && (N$2(d2, E2) || (s2.value ? P$1(o$2(r2), u$4(c2.value, { [d$3.Forwards]: () => N$3.Next, [d$3.Backwards]: () => N$3.Previous }) | N$3.WrapAround, { relativeTo: a2.target }) : a2.target instanceof HTMLElement && S$1(a2.target)));
   }
   return () => {
     let a2 = {}, d2 = { ref: r2, onKeydown: H2, onFocusout: M2 }, { features: E2, initialFocus: g2, containers: X2, ...O2 } = e2;
     return h$2(Fragment, [Boolean(E2 & 4) && h$2(f$1, { as: "button", type: "button", "data-headlessui-focus-guard": true, onFocus: u2, features: a$2.Focusable }), H$1({ ourProps: d2, theirProps: { ...t2, ...O2 }, slot: a2, attrs: t2, slots: l2, name: "FocusTrap" }), Boolean(E2 & 4) && h$2(f$1, { as: "button", type: "button", "data-headlessui-focus-guard": true, onFocus: u2, features: a$2.Focusable })]);
   };
-} }), { features: A$1 }), L$2 = [];
+} }), { features: A }), L$2 = [];
 t$2(() => {
   function e2(t2) {
     t2.target instanceof HTMLElement && t2.target !== document.body && L$2[0] !== t2.target && (L$2.unshift(t2.target), L$2 = L$2.filter((l2) => l2 != null && l2.isConnected), L$2.splice(10));
   }
   window.addEventListener("click", e2, { capture: true }), window.addEventListener("mousedown", e2, { capture: true }), window.addEventListener("focus", e2, { capture: true }), document.body.addEventListener("click", e2, { capture: true }), document.body.addEventListener("mousedown", e2, { capture: true }), document.body.addEventListener("focus", e2, { capture: true });
 });
-function x$2(e2) {
+function x$1(e2) {
   let t2 = ref(L$2.slice());
   return watch([e2], ([l2], [o2]) => {
     o2 === true && l2 === false ? t$3(() => {
@@ -6697,7 +6719,7 @@ function x$2(e2) {
   };
 }
 function z({ ownerDocument: e2 }, t2) {
-  let l2 = x$2(t2);
+  let l2 = x$1(t2);
   onMounted(() => {
     watchEffect(() => {
       var o2, r2;
@@ -6713,12 +6735,12 @@ function J({ ownerDocument: e2, container: t2, initialFocus: l2 }, o2) {
     watch([t2, l2, o2], (n2, m2) => {
       if (n2.every((u2, s2) => (m2 == null ? void 0 : m2[s2]) === u2) || !o2.value)
         return;
-      let c2 = o$1(t2);
+      let c2 = o$2(t2);
       c2 && t$3(() => {
         var H2, M2;
         if (!i2.value)
           return;
-        let u2 = o$1(l2), s2 = (H2 = e2.value) == null ? void 0 : H2.activeElement;
+        let u2 = o$2(l2), s2 = (H2 = e2.value) == null ? void 0 : H2.activeElement;
         if (u2) {
           if (u2 === s2) {
             r2.value = s2;
@@ -6728,26 +6750,26 @@ function J({ ownerDocument: e2, container: t2, initialFocus: l2 }, o2) {
           r2.value = s2;
           return;
         }
-        u2 ? S$1(u2) : P$1(c2, N$2.First | N$2.NoScroll) === T.Error && console.warn("There are no focusable elements inside the <FocusTrap />"), r2.value = (M2 = e2.value) == null ? void 0 : M2.activeElement;
+        u2 ? S$1(u2) : P$1(c2, N$3.First | N$3.NoScroll) === T$1.Error && console.warn("There are no focusable elements inside the <FocusTrap />"), r2.value = (M2 = e2.value) == null ? void 0 : M2.activeElement;
       });
     }, { immediate: true, flush: "post" });
   }), r2;
 }
-function Q$2({ ownerDocument: e2, container: t2, containers: l2, previousActiveElement: o2 }, r2) {
+function Q$1({ ownerDocument: e2, container: t2, containers: l2, previousActiveElement: o2 }, r2) {
   var i2;
   E$3((i2 = e2.value) == null ? void 0 : i2.defaultView, "focus", (n2) => {
     if (!r2.value)
       return;
-    let m2 = B$1(l2);
-    o$1(t2) instanceof HTMLElement && m2.add(o$1(t2));
+    let m2 = B(l2);
+    o$2(t2) instanceof HTMLElement && m2.add(o$2(t2));
     let c2 = o2.value;
     if (!c2)
       return;
     let u2 = n2.target;
-    u2 && u2 instanceof HTMLElement ? N$1(m2, u2) ? (o2.value = u2, S$1(u2)) : (n2.preventDefault(), n2.stopPropagation(), S$1(c2)) : S$1(o2.value);
+    u2 && u2 instanceof HTMLElement ? N$2(m2, u2) ? (o2.value = u2, S$1(u2)) : (n2.preventDefault(), n2.stopPropagation(), S$1(c2)) : S$1(o2.value);
   }, true);
 }
-function N$1(e2, t2) {
+function N$2(e2, t2) {
   for (let l2 of e2)
     if (l2.contains(t2))
       return true;
@@ -6759,7 +6781,7 @@ function E$2(d2, f2 = ref(true)) {
     var a2;
     if (!f2.value)
       return;
-    let e2 = o$1(d2);
+    let e2 = o$2(d2);
     if (!e2)
       return;
     o2(function() {
@@ -6799,14 +6821,14 @@ function E$1(t2) {
   let r2 = e2.createElement("div");
   return r2.setAttribute("id", "headlessui-portal-root"), e2.body.appendChild(r2);
 }
-let U$1 = defineComponent({ name: "Portal", props: { as: { type: [Object, String], default: "div" } }, setup(t2, { slots: e2, attrs: u2 }) {
+let U$2 = defineComponent({ name: "Portal", props: { as: { type: [Object, String], default: "div" } }, setup(t2, { slots: e2, attrs: u2 }) {
   let r2 = ref(null), i2 = computed(() => m$3(r2)), l2 = u$2(), n2 = inject$1(h, null), o2 = ref(l2 === true || n2 == null ? E$1(r2.value) : n2.resolveTarget());
   watchEffect(() => {
     l2 || n2 != null && (o2.value = n2.resolveTarget());
   });
   let d2 = inject$1(f, null);
   return onMounted(() => {
-    let a2 = o$1(r2);
+    let a2 = o$2(r2);
     a2 && d2 && onUnmounted(d2.register(a2));
   }), onUnmounted(() => {
     var v2, P2;
@@ -6819,7 +6841,7 @@ let U$1 = defineComponent({ name: "Portal", props: { as: { type: [Object, String
     return h$2(Teleport, { to: o2.value }, H$1({ ourProps: a2, theirProps: t2, slot: {}, attrs: u2, slots: e2, name: "Portal" }));
   };
 } }), f = Symbol("PortalParentContext");
-function V$1() {
+function V$2() {
   let t2 = inject$1(f, null), e2 = ref([]);
   function u2(l2) {
     return e2.value.push(l2), t2 && t2.register(l2), () => r2(l2);
@@ -6846,7 +6868,7 @@ let h = Symbol("PortalGroupContext"), _ = defineComponent({ name: "PortalGroup",
   };
 } });
 let u$1 = Symbol("StackContext");
-var p$3 = ((e2) => (e2[e2.Add = 0] = "Add", e2[e2.Remove = 1] = "Remove", e2))(p$3 || {});
+var p$2 = ((e2) => (e2[e2.Add = 0] = "Add", e2[e2.Remove = 1] = "Remove", e2))(p$2 || {});
 function v() {
   return inject$1(u$1, () => {
   });
@@ -6864,9 +6886,9 @@ function S({ type: o2, enabled: r2, element: e2, onUpdate: i2 }) {
     r2.value && t2(1, o2, e2);
   }), provide(u$1, t2);
 }
-let p$2 = Symbol("DescriptionContext");
+let p$1 = Symbol("DescriptionContext");
 function b() {
-  let t2 = inject$1(p$2, null);
+  let t2 = inject$1(p$1, null);
   if (t2 === null)
     throw new Error("Missing parent");
   return t2;
@@ -6879,7 +6901,7 @@ function M$1({ slot: t2 = ref({}), name: i2 = "Description", props: o2 = {} } = 
       r2 !== -1 && e2.value.splice(r2, 1);
     };
   }
-  return provide(p$2, { register: s2, slot: t2, name: i2, props: o2 }), computed(() => e2.value.length > 0 ? e2.value.join(" ") : void 0);
+  return provide(p$1, { register: s2, slot: t2, name: i2, props: o2 }), computed(() => e2.value.length > 0 ? e2.value.join(" ") : void 0);
 }
 let E = defineComponent({ name: "Description", props: { as: { type: [Object, String], default: "p" }, id: { type: String, default: () => `headlessui-description-${t$5()}` } }, setup(t2, { attrs: i2, slots: o2 }) {
   let e2 = b();
@@ -6916,32 +6938,36 @@ function c$1() {
     n2.style(t2, "paddingRight", `${r2}px`);
   } };
 }
-function p$1() {
+function w() {
   if (!t$4())
     return {};
-  let o2;
+  let r2;
   return { before() {
-    o2 = window.pageYOffset;
-  }, after({ doc: r2, d: l2, meta: s2 }) {
+    r2 = window.pageYOffset;
+  }, after({ doc: n2, d: o2, meta: s2 }) {
     function i2(e2) {
       return s2.containers.flatMap((t2) => t2()).some((t2) => t2.contains(e2));
     }
-    l2.style(r2.body, "marginTop", `-${o2}px`), window.scrollTo(0, 0);
-    let n2 = null;
-    l2.addEventListener(r2, "click", (e2) => {
+    if (window.getComputedStyle(n2.documentElement).scrollBehavior !== "auto") {
+      let e2 = o$1();
+      e2.style(n2.documentElement, "scroll-behavior", "auto"), o2.add(() => o2.microTask(() => e2.dispose()));
+    }
+    o2.style(n2.body, "marginTop", `-${r2}px`), window.scrollTo(0, 0);
+    let l2 = null;
+    o2.addEventListener(n2, "click", (e2) => {
       if (e2.target instanceof HTMLElement)
         try {
           let t2 = e2.target.closest("a");
           if (!t2)
             return;
-          let { hash: c2 } = new URL(t2.href), a2 = r2.querySelector(c2);
-          a2 && !i2(a2) && (n2 = a2);
+          let { hash: c2 } = new URL(t2.href), a2 = n2.querySelector(c2);
+          a2 && !i2(a2) && (l2 = a2);
         } catch {
         }
-    }, true), l2.addEventListener(r2, "touchmove", (e2) => {
+    }, true), o2.addEventListener(n2, "touchmove", (e2) => {
       e2.target instanceof HTMLElement && !i2(e2.target) && e2.preventDefault();
-    }, { passive: false }), l2.add(() => {
-      window.scrollTo(0, window.pageYOffset + o2), n2 && n2.isConnected && (n2.scrollIntoView({ block: "nearest" }), n2 = null);
+    }, { passive: false }), o2.add(() => {
+      window.scrollTo(0, window.pageYOffset + r2), l2 && l2.isConnected && (l2.scrollIntoView({ block: "nearest" }), l2 = null);
     });
   } };
 }
@@ -6958,13 +6984,13 @@ function m$1(e2) {
 }
 let a = a$1(() => /* @__PURE__ */ new Map(), { PUSH(e2, n2) {
   var o2;
-  let t2 = (o2 = this.get(e2)) != null ? o2 : { doc: e2, count: 0, d: r$1(), meta: /* @__PURE__ */ new Set() };
+  let t2 = (o2 = this.get(e2)) != null ? o2 : { doc: e2, count: 0, d: o$1(), meta: /* @__PURE__ */ new Set() };
   return t2.count++, t2.meta.add(n2), this.set(e2, t2), this;
 }, POP(e2, n2) {
   let t2 = this.get(e2);
   return t2 && (t2.count--, t2.meta.delete(n2)), this;
 }, SCROLL_PREVENT({ doc: e2, d: n2, meta: t2 }) {
-  let o2 = { doc: e2, d: n2, meta: m$1(t2) }, c2 = [p$1(), c$1(), l$1()];
+  let o2 = { doc: e2, d: n2, meta: m$1(t2) }, c2 = [w(), c$1(), l$1()];
   c2.forEach(({ before: r2 }) => r2 == null ? void 0 : r2(o2)), c2.forEach(({ after: r2 }) => r2 == null ? void 0 : r2(o2));
 }, SCROLL_ALLOW({ d: e2 }) {
   e2.dispose();
@@ -6995,24 +7021,30 @@ function d$2(t2, a$12, n2) {
     });
   }, { immediate: true }), l2;
 }
-function p({ defaultContainers: r2 = [], portals: t2 } = {}) {
-  let o2 = ref(null), l2 = m$3(o2);
+function p({ defaultContainers: t2 = [], portals: o2, mainTreeNodeRef: s2 } = {}) {
+  let i2 = ref(null), r2 = m$3(i2);
   function u2() {
-    var i2;
+    var l2;
     let n2 = [];
-    for (let e2 of r2)
+    for (let e2 of t2)
       e2 !== null && (e2 instanceof HTMLElement ? n2.push(e2) : "value" in e2 && e2.value instanceof HTMLElement && n2.push(e2.value));
-    if (t2 != null && t2.value)
-      for (let e2 of t2.value)
+    if (o2 != null && o2.value)
+      for (let e2 of o2.value)
         n2.push(e2);
-    for (let e2 of (i2 = l2 == null ? void 0 : l2.querySelectorAll("html > *, body > *")) != null ? i2 : [])
-      e2 !== document.body && e2 !== document.head && e2 instanceof HTMLElement && e2.id !== "headlessui-portal-root" && (e2.contains(o$1(o2)) || n2.some((f2) => e2.contains(f2)) || n2.push(e2));
+    for (let e2 of (l2 = r2 == null ? void 0 : r2.querySelectorAll("html > *, body > *")) != null ? l2 : [])
+      e2 !== document.body && e2 !== document.head && e2 instanceof HTMLElement && e2.id !== "headlessui-portal-root" && (e2.contains(o$2(i2)) || n2.some((c2) => e2.contains(c2)) || n2.push(e2));
     return n2;
   }
   return { resolveContainers: u2, contains(n2) {
-    return u2().some((i2) => i2.contains(n2));
-  }, mainTreeNodeRef: o2, MainTreeNode() {
-    return h$2(f$1, { features: a$2.Hidden, ref: o2 });
+    return u2().some((l2) => l2.contains(n2));
+  }, mainTreeNodeRef: i2, MainTreeNode() {
+    return s2 != null ? null : h$2(f$1, { features: a$2.Hidden, ref: i2 });
+  } };
+}
+function N$1() {
+  let t2 = ref(null);
+  return { mainTreeNodeRef: t2, MainTreeNode() {
+    return h$2(f$1, { features: a$2.Hidden, ref: t2 });
   } };
 }
 var Oe = ((t2) => (t2[t2.Open = 0] = "Open", t2[t2.Closed = 1] = "Closed", t2))(Oe || {});
@@ -7031,40 +7063,40 @@ let M = "DC8F892D-2EBD-447C-A4C8-A03058436FF4", Ue = defineComponent({ name: "Di
   onMounted(() => {
     r2.value = true;
   });
-  let s2 = ref(0), p$12 = p$4(), m2 = computed(() => o2.open === M && p$12 !== null ? (p$12.value & l$2.Open) === l$2.Open : o2.open), v2 = ref(null), T2 = computed(() => m$3(v2));
+  let s2 = ref(0), p$12 = p$3(), m2 = computed(() => o2.open === M && p$12 !== null ? (p$12.value & l$2.Open) === l$2.Open : o2.open), v2 = ref(null), T2 = computed(() => m$3(v2));
   if (i2({ el: v2, $el: v2 }), !(o2.open !== M || p$12 !== null))
     throw new Error("You forgot to provide an `open` prop to the `Dialog`.");
   if (typeof m2.value != "boolean")
     throw new Error(`You provided an \`open\` prop to the \`Dialog\`, but the value is not a boolean. Received: ${m2.value === M ? void 0 : o2.open}`);
-  let c2 = computed(() => r2.value && m2.value ? 0 : 1), R2 = computed(() => c2.value === 0), E2 = computed(() => s2.value > 1), $2 = inject$1(F$1, null) !== null, [G, V2] = V$1(), { resolveContainers: x2, mainTreeNodeRef: j2, MainTreeNode: W2 } = p({ portals: G, defaultContainers: [computed(() => {
+  let c2 = computed(() => r2.value && m2.value ? 0 : 1), R2 = computed(() => c2.value === 0), E2 = computed(() => s2.value > 1), $2 = inject$1(F$1, null) !== null, [G, V2] = V$2(), { resolveContainers: x2, mainTreeNodeRef: j2, MainTreeNode: W2 } = p({ portals: G, defaultContainers: [computed(() => {
     var e2;
-    return (e2 = y2.panelRef.value) != null ? e2 : v2.value;
+    return (e2 = y$12.panelRef.value) != null ? e2 : v2.value;
   })] }), J2 = computed(() => E2.value ? "parent" : "leaf"), H2 = computed(() => p$12 !== null ? (p$12.value & l$2.Closing) === l$2.Closing : false), Q2 = computed(() => $2 || H2.value ? false : R2.value), X2 = computed(() => {
     var e2, l2, f2;
-    return (f2 = Array.from((l2 = (e2 = T2.value) == null ? void 0 : e2.querySelectorAll("body > *")) != null ? l2 : []).find((d2) => d2.id === "headlessui-portal-root" ? false : d2.contains(o$1(j2)) && d2 instanceof HTMLElement)) != null ? f2 : null;
+    return (f2 = Array.from((l2 = (e2 = T2.value) == null ? void 0 : e2.querySelectorAll("body > *")) != null ? l2 : []).find((d2) => d2.id === "headlessui-portal-root" ? false : d2.contains(o$2(j2)) && d2 instanceof HTMLElement)) != null ? f2 : null;
   });
   E$2(X2, Q2);
   let Z = computed(() => E2.value ? true : R2.value), ee = computed(() => {
     var e2, l2, f2;
-    return (f2 = Array.from((l2 = (e2 = T2.value) == null ? void 0 : e2.querySelectorAll("[data-headlessui-portal]")) != null ? l2 : []).find((d2) => d2.contains(o$1(j2)) && d2 instanceof HTMLElement)) != null ? f2 : null;
+    return (f2 = Array.from((l2 = (e2 = T2.value) == null ? void 0 : e2.querySelectorAll("[data-headlessui-portal]")) != null ? l2 : []).find((d2) => d2.contains(o$2(j2)) && d2 instanceof HTMLElement)) != null ? f2 : null;
   });
   E$2(ee, Z), S({ type: "Dialog", enabled: computed(() => c2.value === 0), element: v2, onUpdate: (e2, l2) => {
     if (l2 === "Dialog")
-      return u$4(e2, { [p$3.Add]: () => s2.value += 1, [p$3.Remove]: () => s2.value -= 1 });
+      return u$4(e2, { [p$2.Add]: () => s2.value += 1, [p$2.Remove]: () => s2.value -= 1 });
   } });
-  let te2 = M$1({ name: "DialogDescription", slot: computed(() => ({ open: m2.value })) }), k2 = ref(null), y2 = { titleId: k2, panelRef: ref(null), dialogState: c2, setTitleId(e2) {
+  let te2 = M$1({ name: "DialogDescription", slot: computed(() => ({ open: m2.value })) }), k2 = ref(null), y$12 = { titleId: k2, panelRef: ref(null), dialogState: c2, setTitleId(e2) {
     k2.value !== e2 && (k2.value = e2);
   }, close() {
     n2("close", false);
   } };
-  provide(F$1, y2);
+  provide(F$1, y$12);
   let le2 = computed(() => !(!R2.value || E2.value));
-  F$2(x2, (e2, l2) => {
-    y2.close(), nextTick(() => l2 == null ? void 0 : l2.focus());
+  y(x2, (e2, l2) => {
+    y$12.close(), nextTick(() => l2 == null ? void 0 : l2.focus());
   }, le2);
   let oe = computed(() => !(E2.value || c2.value !== 0));
   E$3((N2 = T2.value) == null ? void 0 : N2.defaultView, "keydown", (e2) => {
-    oe.value && (e2.defaultPrevented || e2.key === o$2.Escape && (e2.preventDefault(), e2.stopPropagation(), y2.close()));
+    oe.value && (e2.defaultPrevented || e2.key === o$3.Escape && (e2.preventDefault(), e2.stopPropagation(), y$12.close()));
   });
   let re2 = computed(() => !(H2.value || c2.value !== 0 || $2));
   return d$2(T2, re2, (e2) => {
@@ -7073,19 +7105,19 @@ let M = "DC8F892D-2EBD-447C-A4C8-A03058436FF4", Ue = defineComponent({ name: "Di
   }), watchEffect((e2) => {
     if (c2.value !== 0)
       return;
-    let l2 = o$1(v2);
+    let l2 = o$2(v2);
     if (!l2)
       return;
     let f2 = new ResizeObserver((d2) => {
       for (let A2 of d2) {
         let D = A2.target.getBoundingClientRect();
-        D.x === 0 && D.y === 0 && D.width === 0 && D.height === 0 && y2.close();
+        D.x === 0 && D.y === 0 && D.width === 0 && D.height === 0 && y$12.close();
       }
     });
     f2.observe(l2), e2(() => f2.disconnect());
   }), () => {
     let { id: e2, open: l2, initialFocus: f2, ...d2 } = o2, A2 = { ...t2, ref: v2, id: e2, role: "dialog", "aria-modal": c2.value === 0 ? true : void 0, "aria-labelledby": k2.value, "aria-describedby": te2.value }, D = { open: c2.value === 0 };
-    return h$2(P, { force: true }, () => [h$2(U$1, () => h$2(_, { target: v2.value }, () => h$2(P, { force: false }, () => h$2(ce$1, { initialFocus: f2, containers: x2, features: R2.value ? u$4(J2.value, { parent: ce$1.features.RestoreFocus, leaf: ce$1.features.All & ~ce$1.features.FocusLock }) : ce$1.features.None }, () => h$2(V2, {}, () => H$1({ ourProps: A2, theirProps: { ...d2, ...t2 }, slot: D, attrs: t2, slots: u2, visible: c2.value === 0, features: N$3.RenderStrategy | N$3.Static, name: "Dialog" })))))), h$2(W2)]);
+    return h$2(P, { force: true }, () => [h$2(U$2, () => h$2(_, { target: v2.value }, () => h$2(P, { force: false }, () => h$2(ce$1, { initialFocus: f2, containers: x2, features: R2.value ? u$4(J2.value, { parent: ce$1.features.RestoreFocus, leaf: ce$1.features.All & ~ce$1.features.FocusLock }) : ce$1.features.None }, () => h$2(V2, {}, () => H$1({ ourProps: A2, theirProps: { ...d2, ...t2 }, slot: D, attrs: t2, slots: u2, visible: c2.value === 0, features: N$4.RenderStrategy | N$4.Static, name: "Dialog" })))))), h$2(W2)]);
   };
 } }), Ye = defineComponent({ name: "DialogOverlay", props: { as: { type: [Object, String], default: "div" }, id: { type: String, default: () => `headlessui-dialog-overlay-${t$5()}` } }, setup(o2, { attrs: n2, slots: t2 }) {
   let u2 = C("DialogOverlay");
@@ -7104,7 +7136,7 @@ defineComponent({ name: "DialogBackdrop", props: { as: { type: [Object, String],
       throw new Error("A <DialogBackdrop /> component is being used, but a <DialogPanel /> component is missing.");
   }), () => {
     let { id: s2, ...p2 } = o2, m2 = { id: s2, ref: r2, "aria-hidden": true };
-    return h$2(P, { force: true }, () => h$2(U$1, () => H$1({ ourProps: m2, theirProps: { ...n2, ...p2 }, slot: { open: i2.dialogState.value === 0 }, attrs: n2, slots: t2, name: "DialogBackdrop" })));
+    return h$2(P, { force: true }, () => h$2(U$2, () => H$1({ ourProps: m2, theirProps: { ...n2, ...p2 }, slot: { open: i2.dialogState.value === 0 }, attrs: n2, slots: t2, name: "DialogBackdrop" })));
   };
 } });
 defineComponent({ name: "DialogPanel", props: { as: { type: [Object, String], default: "div" }, id: { type: String, default: () => `headlessui-dialog-panel-${t$5()}` } }, setup(o2, { attrs: n2, slots: t2, expose: u2 }) {
@@ -7128,327 +7160,329 @@ defineComponent({ name: "DialogTitle", props: { as: { type: [Object, String], de
   };
 } });
 E;
-var j$1 = ((o2) => (o2[o2.Open = 0] = "Open", o2[o2.Closed = 1] = "Closed", o2))(j$1 || {});
-let x$1 = Symbol("DisclosureContext");
-function g$2(t2) {
-  let r2 = inject$1(x$1, null);
+var $ = ((o2) => (o2[o2.Open = 0] = "Open", o2[o2.Closed = 1] = "Closed", o2))($ || {});
+let T = Symbol("DisclosureContext");
+function O(t2) {
+  let r2 = inject$1(T, null);
   if (r2 === null) {
     let o2 = new Error(`<${t2} /> is missing a parent <Disclosure /> component.`);
-    throw Error.captureStackTrace && Error.captureStackTrace(o2, g$2), o2;
+    throw Error.captureStackTrace && Error.captureStackTrace(o2, O), o2;
   }
   return r2;
 }
-let B = Symbol("DisclosurePanelContext");
-function $() {
-  return inject$1(B, null);
+let k$1 = Symbol("DisclosurePanelContext");
+function U$1() {
+  return inject$1(k$1, null);
 }
-let Q$1 = defineComponent({ name: "Disclosure", props: { as: { type: [Object, String], default: "template" }, defaultOpen: { type: [Boolean], default: false } }, setup(t2, { slots: r2, attrs: o2 }) {
-  let u2 = ref(t2.defaultOpen ? 0 : 1), e2 = ref(null), i2 = ref(null), s2 = { buttonId: ref(null), panelId: ref(null), disclosureState: u2, panel: e2, button: i2, toggleDisclosure() {
-    u2.value = u$4(u2.value, { [0]: 1, [1]: 0 });
+let V$1 = defineComponent({ name: "Disclosure", props: { as: { type: [Object, String], default: "template" }, defaultOpen: { type: [Boolean], default: false } }, setup(t2, { slots: r2, attrs: o2 }) {
+  let s2 = ref(t2.defaultOpen ? 0 : 1), e2 = ref(null), i2 = ref(null), n2 = { buttonId: ref(`headlessui-disclosure-button-${t$5()}`), panelId: ref(`headlessui-disclosure-panel-${t$5()}`), disclosureState: s2, panel: e2, button: i2, toggleDisclosure() {
+    s2.value = u$4(s2.value, { [0]: 1, [1]: 0 });
   }, closeDisclosure() {
-    u2.value !== 1 && (u2.value = 1);
+    s2.value !== 1 && (s2.value = 1);
   }, close(l2) {
-    s2.closeDisclosure();
-    let a2 = (() => l2 ? l2 instanceof HTMLElement ? l2 : l2.value instanceof HTMLElement ? o$1(l2) : o$1(s2.button) : o$1(s2.button))();
+    n2.closeDisclosure();
+    let a2 = (() => l2 ? l2 instanceof HTMLElement ? l2 : l2.value instanceof HTMLElement ? o$2(l2) : o$2(n2.button) : o$2(n2.button))();
     a2 == null || a2.focus();
   } };
-  return provide(x$1, s2), c$4(computed(() => u$4(u2.value, { [0]: l$2.Open, [1]: l$2.Closed }))), () => {
-    let { defaultOpen: l2, ...a2 } = t2, c2 = { open: u2.value === 0, close: s2.close };
+  return provide(T, n2), c$4(computed(() => u$4(s2.value, { [0]: l$2.Open, [1]: l$2.Closed }))), () => {
+    let { defaultOpen: l2, ...a2 } = t2, c2 = { open: s2.value === 0, close: n2.close };
     return H$1({ theirProps: a2, ourProps: {}, slot: c2, slots: r2, attrs: o2, name: "Disclosure" });
   };
-} }), V = defineComponent({ name: "DisclosureButton", props: { as: { type: [Object, String], default: "button" }, disabled: { type: [Boolean], default: false }, id: { type: String, default: () => `headlessui-disclosure-button-${t$5()}` } }, setup(t2, { attrs: r2, slots: o2, expose: u2 }) {
-  let e2 = g$2("DisclosureButton");
+} }), X = defineComponent({ name: "DisclosureButton", props: { as: { type: [Object, String], default: "button" }, disabled: { type: [Boolean], default: false }, id: { type: String, default: null } }, setup(t2, { attrs: r2, slots: o2, expose: s2 }) {
+  let e2 = O("DisclosureButton"), i2 = U$1(), n2 = computed(() => i2 === null ? false : i2.value === e2.panelId.value);
   onMounted(() => {
-    e2.buttonId.value = t2.id;
+    n2.value || t2.id !== null && (e2.buttonId.value = t2.id);
   }), onUnmounted(() => {
-    e2.buttonId.value = null;
+    n2.value || (e2.buttonId.value = null);
   });
-  let i2 = $(), s2 = computed(() => i2 === null ? false : i2.value === e2.panelId.value), l2 = ref(null);
-  u2({ el: l2, $el: l2 }), s2.value || watchEffect(() => {
+  let l2 = ref(null);
+  s2({ el: l2, $el: l2 }), n2.value || watchEffect(() => {
     e2.button.value = l2.value;
   });
   let a2 = b$1(computed(() => ({ as: t2.as, type: r2.type })), l2);
   function c2() {
-    var n2;
-    t2.disabled || (s2.value ? (e2.toggleDisclosure(), (n2 = o$1(e2.button)) == null || n2.focus()) : e2.toggleDisclosure());
+    var u2;
+    t2.disabled || (n2.value ? (e2.toggleDisclosure(), (u2 = o$2(e2.button)) == null || u2.focus()) : e2.toggleDisclosure());
   }
-  function D(n2) {
+  function D(u2) {
     var S2;
     if (!t2.disabled)
-      if (s2.value)
-        switch (n2.key) {
-          case o$2.Space:
-          case o$2.Enter:
-            n2.preventDefault(), n2.stopPropagation(), e2.toggleDisclosure(), (S2 = o$1(e2.button)) == null || S2.focus();
+      if (n2.value)
+        switch (u2.key) {
+          case o$3.Space:
+          case o$3.Enter:
+            u2.preventDefault(), u2.stopPropagation(), e2.toggleDisclosure(), (S2 = o$2(e2.button)) == null || S2.focus();
             break;
         }
       else
-        switch (n2.key) {
-          case o$2.Space:
-          case o$2.Enter:
-            n2.preventDefault(), n2.stopPropagation(), e2.toggleDisclosure();
+        switch (u2.key) {
+          case o$3.Space:
+          case o$3.Enter:
+            u2.preventDefault(), u2.stopPropagation(), e2.toggleDisclosure();
             break;
         }
   }
-  function T2(n2) {
-    switch (n2.key) {
-      case o$2.Space:
-        n2.preventDefault();
+  function v2(u2) {
+    switch (u2.key) {
+      case o$3.Space:
+        u2.preventDefault();
         break;
     }
   }
   return () => {
-    let n2 = { open: e2.disclosureState.value === 0 }, { id: S2, ...k2 } = t2, K = s2.value ? { ref: l2, type: a2.value, onClick: c2, onKeydown: D } : { id: S2, ref: l2, type: a2.value, "aria-expanded": t2.disabled ? void 0 : e2.disclosureState.value === 0, "aria-controls": o$1(e2.panel) ? e2.panelId.value : void 0, disabled: t2.disabled ? true : void 0, onClick: c2, onKeydown: D, onKeyup: T2 };
-    return H$1({ ourProps: K, theirProps: k2, slot: n2, attrs: r2, slots: o2, name: "DisclosureButton" });
+    var C2;
+    let u2 = { open: e2.disclosureState.value === 0 }, { id: S2, ...K } = t2, M2 = n2.value ? { ref: l2, type: a2.value, onClick: c2, onKeydown: D } : { id: (C2 = e2.buttonId.value) != null ? C2 : S2, ref: l2, type: a2.value, "aria-expanded": e2.disclosureState.value === 0, "aria-controls": e2.disclosureState.value === 0 || o$2(e2.panel) ? e2.panelId.value : void 0, disabled: t2.disabled ? true : void 0, onClick: c2, onKeydown: D, onKeyup: v2 };
+    return H$1({ ourProps: M2, theirProps: K, slot: u2, attrs: r2, slots: o2, name: "DisclosureButton" });
   };
-} }), X = defineComponent({ name: "DisclosurePanel", props: { as: { type: [Object, String], default: "div" }, static: { type: Boolean, default: false }, unmount: { type: Boolean, default: true }, id: { type: String, default: () => `headlessui-disclosure-panel-${t$5()}` } }, setup(t2, { attrs: r2, slots: o2, expose: u2 }) {
-  let e2 = g$2("DisclosurePanel");
+} }), Y = defineComponent({ name: "DisclosurePanel", props: { as: { type: [Object, String], default: "div" }, static: { type: Boolean, default: false }, unmount: { type: Boolean, default: true }, id: { type: String, default: null } }, setup(t2, { attrs: r2, slots: o2, expose: s2 }) {
+  let e2 = O("DisclosurePanel");
   onMounted(() => {
-    e2.panelId.value = t2.id;
+    t2.id !== null && (e2.panelId.value = t2.id);
   }), onUnmounted(() => {
     e2.panelId.value = null;
-  }), u2({ el: e2.panel, $el: e2.panel }), provide(B, e2.panelId);
-  let i2 = p$4(), s2 = computed(() => i2 !== null ? (i2.value & l$2.Open) === l$2.Open : e2.disclosureState.value === 0);
+  }), s2({ el: e2.panel, $el: e2.panel }), provide(k$1, e2.panelId);
+  let i2 = p$3(), n2 = computed(() => i2 !== null ? (i2.value & l$2.Open) === l$2.Open : e2.disclosureState.value === 0);
   return () => {
-    let l2 = { open: e2.disclosureState.value === 0, close: e2.close }, { id: a2, ...c2 } = t2, D = { id: a2, ref: e2.panel };
-    return H$1({ ourProps: D, theirProps: c2, slot: l2, attrs: r2, slots: o2, features: N$3.RenderStrategy | N$3.Static, visible: s2.value, name: "DisclosurePanel" });
+    var v2;
+    let l2 = { open: e2.disclosureState.value === 0, close: e2.close }, { id: a2, ...c2 } = t2, D = { id: (v2 = e2.panelId.value) != null ? v2 : a2, ref: e2.panel };
+    return H$1({ ourProps: D, theirProps: c2, slot: l2, attrs: r2, slots: o2, features: N$4.RenderStrategy | N$4.Static, visible: n2.value, name: "DisclosurePanel" });
   };
 } });
-var be = ((p2) => (p2[p2.Open = 0] = "Open", p2[p2.Closed = 1] = "Closed", p2))(be || {});
+var Se$1 = ((p2) => (p2[p2.Open = 0] = "Open", p2[p2.Closed = 1] = "Closed", p2))(Se$1 || {});
 let re = Symbol("PopoverContext");
-function A(d2) {
-  let S2 = inject$1(re, null);
-  if (S2 === null) {
-    let p2 = new Error(`<${d2} /> is missing a parent <${ge$1.name} /> component.`);
-    throw Error.captureStackTrace && Error.captureStackTrace(p2, A), p2;
+function V(P2) {
+  let b3 = inject$1(re, null);
+  if (b3 === null) {
+    let p2 = new Error(`<${P2} /> is missing a parent <${ye$1.name} /> component.`);
+    throw Error.captureStackTrace && Error.captureStackTrace(p2, V), p2;
   }
-  return S2;
+  return b3;
 }
 let le$1 = Symbol("PopoverGroupContext");
 function ae() {
   return inject$1(le$1, null);
 }
 let ue = Symbol("PopoverPanelContext");
-function Se$1() {
+function ge$1() {
   return inject$1(ue, null);
 }
-let ge$1 = defineComponent({ name: "Popover", props: { as: { type: [Object, String], default: "div" } }, setup(d2, { slots: S2, attrs: p$12, expose: h2 }) {
+let ye$1 = defineComponent({ name: "Popover", inheritAttrs: false, props: { as: { type: [Object, String], default: "div" } }, setup(P2, { slots: b3, attrs: p$12, expose: h2 }) {
   var v2;
   let t2 = ref(null);
   h2({ el: t2, $el: t2 });
-  let e2 = ref(1), c2 = ref(null), P2 = ref(null), F2 = ref(null), f2 = ref(null), g2 = computed(() => m$3(t2)), m2 = computed(() => {
-    var X2, Y;
-    if (!o$1(c2) || !o$1(f2))
+  let e2 = ref(1), d2 = ref(null), c2 = ref(null), O2 = ref(null), f2 = ref(null), y$12 = computed(() => m$3(t2)), M2 = computed(() => {
+    var Y2, Z;
+    if (!o$2(d2) || !o$2(f2))
       return false;
-    for (let k2 of document.querySelectorAll("body > *"))
-      if (Number(k2 == null ? void 0 : k2.contains(o$1(c2))) ^ Number(k2 == null ? void 0 : k2.contains(o$1(f2))))
+    for (let B2 of document.querySelectorAll("body > *"))
+      if (Number(B2 == null ? void 0 : B2.contains(o$2(d2))) ^ Number(B2 == null ? void 0 : B2.contains(o$2(f2))))
         return true;
-    let o2 = E$4(), l2 = o2.indexOf(o$1(c2)), b3 = (l2 + o2.length - 1) % o2.length, E2 = (l2 + 1) % o2.length, K = o2[b3], j2 = o2[E2];
-    return !((X2 = o$1(f2)) != null && X2.contains(K)) && !((Y = o$1(f2)) != null && Y.contains(j2));
-  }), a2 = { popoverState: e2, buttonId: ref(null), panelId: ref(null), panel: f2, button: c2, isPortalled: m2, beforePanelSentinel: P2, afterPanelSentinel: F2, togglePopover() {
+    let o2 = E$4(), a2 = o2.indexOf(o$2(d2)), g2 = (a2 + o2.length - 1) % o2.length, E2 = (a2 + 1) % o2.length, N2 = o2[g2], $2 = o2[E2];
+    return !((Y2 = o$2(f2)) != null && Y2.contains(N2)) && !((Z = o$2(f2)) != null && Z.contains($2));
+  }), l2 = { popoverState: e2, buttonId: ref(null), panelId: ref(null), panel: f2, button: d2, isPortalled: M2, beforePanelSentinel: c2, afterPanelSentinel: O2, togglePopover() {
     e2.value = u$4(e2.value, { [0]: 1, [1]: 0 });
   }, closePopover() {
     e2.value !== 1 && (e2.value = 1);
   }, close(o2) {
-    a2.closePopover();
-    let l2 = (() => o2 ? o2 instanceof HTMLElement ? o2 : o2.value instanceof HTMLElement ? o$1(o2) : o$1(a2.button) : o$1(a2.button))();
-    l2 == null || l2.focus();
+    l2.closePopover();
+    let a2 = (() => o2 ? o2 instanceof HTMLElement ? o2 : o2.value instanceof HTMLElement ? o$2(o2) : o$2(l2.button) : o$2(l2.button))();
+    a2 == null || a2.focus();
   } };
-  provide(re, a2), c$4(computed(() => u$4(e2.value, { [0]: l$2.Open, [1]: l$2.Closed })));
-  let w2 = { buttonId: a2.buttonId, panelId: a2.panelId, close() {
-    a2.closePopover();
-  } }, y2 = ae(), O2 = y2 == null ? void 0 : y2.registerPopover, [u2, i2] = V$1(), s2 = p({ portals: u2, defaultContainers: [c2, f2] });
+  provide(re, l2), c$4(computed(() => u$4(e2.value, { [0]: l$2.Open, [1]: l$2.Closed })));
+  let m2 = { buttonId: l2.buttonId, panelId: l2.panelId, close() {
+    l2.closePopover();
+  } }, S2 = ae(), I2 = S2 == null ? void 0 : S2.registerPopover, [s2, u2] = V$2(), i2 = p({ mainTreeNodeRef: S2 == null ? void 0 : S2.mainTreeNodeRef, portals: s2, defaultContainers: [d2, f2] });
   function n2() {
-    var o2, l2, b3, E2;
-    return (E2 = y2 == null ? void 0 : y2.isFocusWithinPopoverGroup()) != null ? E2 : ((o2 = g2.value) == null ? void 0 : o2.activeElement) && (((l2 = o$1(c2)) == null ? void 0 : l2.contains(g2.value.activeElement)) || ((b3 = o$1(f2)) == null ? void 0 : b3.contains(g2.value.activeElement)));
+    var o2, a2, g2, E2;
+    return (E2 = S2 == null ? void 0 : S2.isFocusWithinPopoverGroup()) != null ? E2 : ((o2 = y$12.value) == null ? void 0 : o2.activeElement) && (((a2 = o$2(d2)) == null ? void 0 : a2.contains(y$12.value.activeElement)) || ((g2 = o$2(f2)) == null ? void 0 : g2.contains(y$12.value.activeElement)));
   }
-  return watchEffect(() => O2 == null ? void 0 : O2(w2)), E$3((v2 = g2.value) == null ? void 0 : v2.defaultView, "focus", (o2) => {
-    var l2, b3;
-    o2.target !== window && o2.target instanceof HTMLElement && e2.value === 0 && (n2() || c2 && f2 && (s2.contains(o2.target) || (l2 = o$1(a2.beforePanelSentinel)) != null && l2.contains(o2.target) || (b3 = o$1(a2.afterPanelSentinel)) != null && b3.contains(o2.target) || a2.closePopover()));
-  }, true), F$2(s2.resolveContainers, (o2, l2) => {
-    var b3;
-    a2.closePopover(), w$1(l2, h$1.Loose) || (o2.preventDefault(), (b3 = o$1(c2)) == null || b3.focus());
+  return watchEffect(() => I2 == null ? void 0 : I2(m2)), E$3((v2 = y$12.value) == null ? void 0 : v2.defaultView, "focus", (o2) => {
+    var a2, g2;
+    o2.target !== window && o2.target instanceof HTMLElement && e2.value === 0 && (n2() || d2 && f2 && (i2.contains(o2.target) || (a2 = o$2(l2.beforePanelSentinel)) != null && a2.contains(o2.target) || (g2 = o$2(l2.afterPanelSentinel)) != null && g2.contains(o2.target) || l2.closePopover()));
+  }, true), y(i2.resolveContainers, (o2, a2) => {
+    var g2;
+    l2.closePopover(), w$2(a2, h$1.Loose) || (o2.preventDefault(), (g2 = o$2(d2)) == null || g2.focus());
   }, computed(() => e2.value === 0)), () => {
-    let o2 = { open: e2.value === 0, close: a2.close };
-    return h$2(i2, {}, () => H$1({ theirProps: { ...d2, ...p$12 }, ourProps: { ref: t2 }, slot: o2, slots: S2, attrs: p$12, name: "Popover" }));
+    let o2 = { open: e2.value === 0, close: l2.close };
+    return h$2(Fragment, [h$2(u2, {}, () => H$1({ theirProps: { ...P2, ...p$12 }, ourProps: { ref: t2 }, slot: o2, slots: b3, attrs: p$12, name: "Popover" })), h$2(i2.MainTreeNode)]);
   };
-} }), je = defineComponent({ name: "PopoverButton", props: { as: { type: [Object, String], default: "button" }, disabled: { type: [Boolean], default: false }, id: { type: String, default: () => `headlessui-popover-button-${t$5()}` } }, inheritAttrs: false, setup(d2, { attrs: S2, slots: p2, expose: h2 }) {
-  let t2 = A("PopoverButton"), e2 = computed(() => m$3(t2.button));
+} }), je = defineComponent({ name: "PopoverButton", props: { as: { type: [Object, String], default: "button" }, disabled: { type: [Boolean], default: false }, id: { type: String, default: () => `headlessui-popover-button-${t$5()}` } }, inheritAttrs: false, setup(P2, { attrs: b3, slots: p2, expose: h2 }) {
+  let t2 = V("PopoverButton"), e2 = computed(() => m$3(t2.button));
   h2({ el: t2.button, $el: t2.button }), onMounted(() => {
-    t2.buttonId.value = d2.id;
+    t2.buttonId.value = P2.id;
   }), onUnmounted(() => {
     t2.buttonId.value = null;
   });
-  let c2 = ae(), P2 = c2 == null ? void 0 : c2.closeOthers, F2 = Se$1(), f2 = computed(() => F2 === null ? false : F2.value === t2.panelId.value), g2 = ref(null), m2 = `headlessui-focus-sentinel-${t$5()}`;
+  let d2 = ae(), c2 = d2 == null ? void 0 : d2.closeOthers, O2 = ge$1(), f2 = computed(() => O2 === null ? false : O2.value === t2.panelId.value), y2 = ref(null), M2 = `headlessui-focus-sentinel-${t$5()}`;
   f2.value || watchEffect(() => {
-    t2.button.value = g2.value;
+    t2.button.value = y2.value;
   });
-  let a2 = b$1(computed(() => ({ as: d2.as, type: S2.type })), g2);
-  function w2(n2) {
-    var v2, o2, l2, b3, E2;
+  let l2 = b$1(computed(() => ({ as: P2.as, type: b3.type })), y2);
+  function m2(n2) {
+    var v2, o2, a2, g2, E2;
     if (f2.value) {
       if (t2.popoverState.value === 1)
         return;
       switch (n2.key) {
-        case o$2.Space:
-        case o$2.Enter:
-          n2.preventDefault(), (o2 = (v2 = n2.target).click) == null || o2.call(v2), t2.closePopover(), (l2 = o$1(t2.button)) == null || l2.focus();
+        case o$3.Space:
+        case o$3.Enter:
+          n2.preventDefault(), (o2 = (v2 = n2.target).click) == null || o2.call(v2), t2.closePopover(), (a2 = o$2(t2.button)) == null || a2.focus();
           break;
       }
     } else
       switch (n2.key) {
-        case o$2.Space:
-        case o$2.Enter:
-          n2.preventDefault(), n2.stopPropagation(), t2.popoverState.value === 1 && (P2 == null || P2(t2.buttonId.value)), t2.togglePopover();
+        case o$3.Space:
+        case o$3.Enter:
+          n2.preventDefault(), n2.stopPropagation(), t2.popoverState.value === 1 && (c2 == null || c2(t2.buttonId.value)), t2.togglePopover();
           break;
-        case o$2.Escape:
+        case o$3.Escape:
           if (t2.popoverState.value !== 0)
-            return P2 == null ? void 0 : P2(t2.buttonId.value);
-          if (!o$1(t2.button) || (b3 = e2.value) != null && b3.activeElement && !((E2 = o$1(t2.button)) != null && E2.contains(e2.value.activeElement)))
+            return c2 == null ? void 0 : c2(t2.buttonId.value);
+          if (!o$2(t2.button) || (g2 = e2.value) != null && g2.activeElement && !((E2 = o$2(t2.button)) != null && E2.contains(e2.value.activeElement)))
             return;
           n2.preventDefault(), n2.stopPropagation(), t2.closePopover();
           break;
       }
   }
-  function y2(n2) {
-    f2.value || n2.key === o$2.Space && n2.preventDefault();
+  function S2(n2) {
+    f2.value || n2.key === o$3.Space && n2.preventDefault();
   }
-  function O2(n2) {
+  function I2(n2) {
     var v2, o2;
-    d2.disabled || (f2.value ? (t2.closePopover(), (v2 = o$1(t2.button)) == null || v2.focus()) : (n2.preventDefault(), n2.stopPropagation(), t2.popoverState.value === 1 && (P2 == null || P2(t2.buttonId.value)), t2.togglePopover(), (o2 = o$1(t2.button)) == null || o2.focus()));
+    P2.disabled || (f2.value ? (t2.closePopover(), (v2 = o$2(t2.button)) == null || v2.focus()) : (n2.preventDefault(), n2.stopPropagation(), t2.popoverState.value === 1 && (c2 == null || c2(t2.buttonId.value)), t2.togglePopover(), (o2 = o$2(t2.button)) == null || o2.focus()));
   }
-  function u2(n2) {
+  function s2(n2) {
     n2.preventDefault(), n2.stopPropagation();
   }
-  let i2 = n$1();
-  function s2() {
-    let n2 = o$1(t2.panel);
+  let u2 = n$1();
+  function i2() {
+    let n2 = o$2(t2.panel);
     if (!n2)
       return;
     function v2() {
-      u$4(i2.value, { [d$3.Forwards]: () => P$1(n2, N$2.First), [d$3.Backwards]: () => P$1(n2, N$2.Last) }) === T.Error && P$1(E$4().filter((l2) => l2.dataset.headlessuiFocusGuard !== "true"), u$4(i2.value, { [d$3.Forwards]: N$2.Next, [d$3.Backwards]: N$2.Previous }), { relativeTo: o$1(t2.button) });
+      u$4(u2.value, { [d$3.Forwards]: () => P$1(n2, N$3.First), [d$3.Backwards]: () => P$1(n2, N$3.Last) }) === T$1.Error && P$1(E$4().filter((a2) => a2.dataset.headlessuiFocusGuard !== "true"), u$4(u2.value, { [d$3.Forwards]: N$3.Next, [d$3.Backwards]: N$3.Previous }), { relativeTo: o$2(t2.button) });
     }
     v2();
   }
   return () => {
-    let n2 = t2.popoverState.value === 0, v2 = { open: n2 }, { id: o2, ...l2 } = d2, b3 = f2.value ? { ref: g2, type: a2.value, onKeydown: w2, onClick: O2 } : { ref: g2, id: o2, type: a2.value, "aria-expanded": d2.disabled ? void 0 : t2.popoverState.value === 0, "aria-controls": o$1(t2.panel) ? t2.panelId.value : void 0, disabled: d2.disabled ? true : void 0, onKeydown: w2, onKeyup: y2, onClick: O2, onMousedown: u2 };
-    return h$2(Fragment, [H$1({ ourProps: b3, theirProps: { ...S2, ...l2 }, slot: v2, attrs: S2, slots: p2, name: "PopoverButton" }), n2 && !f2.value && t2.isPortalled.value && h$2(f$1, { id: m2, features: a$2.Focusable, "data-headlessui-focus-guard": true, as: "button", type: "button", onFocus: s2 })]);
+    let n2 = t2.popoverState.value === 0, v2 = { open: n2 }, { id: o2, ...a2 } = P2, g2 = f2.value ? { ref: y2, type: l2.value, onKeydown: m2, onClick: I2 } : { ref: y2, id: o2, type: l2.value, "aria-expanded": t2.popoverState.value === 0, "aria-controls": o$2(t2.panel) ? t2.panelId.value : void 0, disabled: P2.disabled ? true : void 0, onKeydown: m2, onKeyup: S2, onClick: I2, onMousedown: s2 };
+    return h$2(Fragment, [H$1({ ourProps: g2, theirProps: { ...b3, ...a2 }, slot: v2, attrs: b3, slots: p2, name: "PopoverButton" }), n2 && !f2.value && t2.isPortalled.value && h$2(f$1, { id: M2, features: a$2.Focusable, "data-headlessui-focus-guard": true, as: "button", type: "button", onFocus: i2 })]);
   };
 } });
-defineComponent({ name: "PopoverOverlay", props: { as: { type: [Object, String], default: "div" }, static: { type: Boolean, default: false }, unmount: { type: Boolean, default: true } }, setup(d2, { attrs: S2, slots: p2 }) {
-  let h2 = A("PopoverOverlay"), t2 = `headlessui-popover-overlay-${t$5()}`, e2 = p$4(), c2 = computed(() => e2 !== null ? (e2.value & l$2.Open) === l$2.Open : h2.popoverState.value === 0);
-  function P2() {
+defineComponent({ name: "PopoverOverlay", props: { as: { type: [Object, String], default: "div" }, static: { type: Boolean, default: false }, unmount: { type: Boolean, default: true } }, setup(P2, { attrs: b3, slots: p2 }) {
+  let h2 = V("PopoverOverlay"), t2 = `headlessui-popover-overlay-${t$5()}`, e2 = p$3(), d2 = computed(() => e2 !== null ? (e2.value & l$2.Open) === l$2.Open : h2.popoverState.value === 0);
+  function c2() {
     h2.closePopover();
   }
   return () => {
-    let F2 = { open: h2.popoverState.value === 0 };
-    return H$1({ ourProps: { id: t2, "aria-hidden": true, onClick: P2 }, theirProps: d2, slot: F2, attrs: S2, slots: p2, features: N$3.RenderStrategy | N$3.Static, visible: c2.value, name: "PopoverOverlay" });
+    let O2 = { open: h2.popoverState.value === 0 };
+    return H$1({ ourProps: { id: t2, "aria-hidden": true, onClick: c2 }, theirProps: P2, slot: O2, attrs: b3, slots: p2, features: N$4.RenderStrategy | N$4.Static, visible: d2.value, name: "PopoverOverlay" });
   };
 } });
-let We = defineComponent({ name: "PopoverPanel", props: { as: { type: [Object, String], default: "div" }, static: { type: Boolean, default: false }, unmount: { type: Boolean, default: true }, focus: { type: Boolean, default: false }, id: { type: String, default: () => `headlessui-popover-panel-${t$5()}` } }, inheritAttrs: false, setup(d2, { attrs: S2, slots: p2, expose: h2 }) {
-  let { focus: t2 } = d2, e2 = A("PopoverPanel"), c2 = computed(() => m$3(e2.panel)), P2 = `headlessui-focus-sentinel-before-${t$5()}`, F2 = `headlessui-focus-sentinel-after-${t$5()}`;
+let We = defineComponent({ name: "PopoverPanel", props: { as: { type: [Object, String], default: "div" }, static: { type: Boolean, default: false }, unmount: { type: Boolean, default: true }, focus: { type: Boolean, default: false }, id: { type: String, default: () => `headlessui-popover-panel-${t$5()}` } }, inheritAttrs: false, setup(P2, { attrs: b3, slots: p2, expose: h2 }) {
+  let { focus: t2 } = P2, e2 = V("PopoverPanel"), d2 = computed(() => m$3(e2.panel)), c2 = `headlessui-focus-sentinel-before-${t$5()}`, O2 = `headlessui-focus-sentinel-after-${t$5()}`;
   h2({ el: e2.panel, $el: e2.panel }), onMounted(() => {
-    e2.panelId.value = d2.id;
+    e2.panelId.value = P2.id;
   }), onUnmounted(() => {
     e2.panelId.value = null;
   }), provide(ue, e2.panelId), watchEffect(() => {
-    var i2, s2;
+    var u2, i2;
     if (!t2 || e2.popoverState.value !== 0 || !e2.panel)
       return;
-    let u2 = (i2 = c2.value) == null ? void 0 : i2.activeElement;
-    (s2 = o$1(e2.panel)) != null && s2.contains(u2) || P$1(o$1(e2.panel), N$2.First);
+    let s2 = (u2 = d2.value) == null ? void 0 : u2.activeElement;
+    (i2 = o$2(e2.panel)) != null && i2.contains(s2) || P$1(o$2(e2.panel), N$3.First);
   });
-  let f2 = p$4(), g2 = computed(() => f2 !== null ? (f2.value & l$2.Open) === l$2.Open : e2.popoverState.value === 0);
-  function m2(u2) {
-    var i2, s2;
-    switch (u2.key) {
-      case o$2.Escape:
-        if (e2.popoverState.value !== 0 || !o$1(e2.panel) || c2.value && !((i2 = o$1(e2.panel)) != null && i2.contains(c2.value.activeElement)))
+  let f2 = p$3(), y2 = computed(() => f2 !== null ? (f2.value & l$2.Open) === l$2.Open : e2.popoverState.value === 0);
+  function M2(s2) {
+    var u2, i2;
+    switch (s2.key) {
+      case o$3.Escape:
+        if (e2.popoverState.value !== 0 || !o$2(e2.panel) || d2.value && !((u2 = o$2(e2.panel)) != null && u2.contains(d2.value.activeElement)))
           return;
-        u2.preventDefault(), u2.stopPropagation(), e2.closePopover(), (s2 = o$1(e2.button)) == null || s2.focus();
+        s2.preventDefault(), s2.stopPropagation(), e2.closePopover(), (i2 = o$2(e2.button)) == null || i2.focus();
         break;
     }
   }
-  function a2(u2) {
-    var s2, n2, v2, o2, l2;
-    let i2 = u2.relatedTarget;
-    i2 && o$1(e2.panel) && ((s2 = o$1(e2.panel)) != null && s2.contains(i2) || (e2.closePopover(), ((v2 = (n2 = o$1(e2.beforePanelSentinel)) == null ? void 0 : n2.contains) != null && v2.call(n2, i2) || (l2 = (o2 = o$1(e2.afterPanelSentinel)) == null ? void 0 : o2.contains) != null && l2.call(o2, i2)) && i2.focus({ preventScroll: true })));
+  function l2(s2) {
+    var i2, n2, v2, o2, a2;
+    let u2 = s2.relatedTarget;
+    u2 && o$2(e2.panel) && ((i2 = o$2(e2.panel)) != null && i2.contains(u2) || (e2.closePopover(), ((v2 = (n2 = o$2(e2.beforePanelSentinel)) == null ? void 0 : n2.contains) != null && v2.call(n2, u2) || (a2 = (o2 = o$2(e2.afterPanelSentinel)) == null ? void 0 : o2.contains) != null && a2.call(o2, u2)) && u2.focus({ preventScroll: true })));
   }
-  let w2 = n$1();
-  function y2() {
-    let u2 = o$1(e2.panel);
-    if (!u2)
+  let m2 = n$1();
+  function S2() {
+    let s2 = o$2(e2.panel);
+    if (!s2)
       return;
-    function i2() {
-      u$4(w2.value, { [d$3.Forwards]: () => {
+    function u2() {
+      u$4(m2.value, { [d$3.Forwards]: () => {
         var n2;
-        P$1(u2, N$2.First) === T.Error && ((n2 = o$1(e2.afterPanelSentinel)) == null || n2.focus());
+        P$1(s2, N$3.First) === T$1.Error && ((n2 = o$2(e2.afterPanelSentinel)) == null || n2.focus());
       }, [d$3.Backwards]: () => {
-        var s2;
-        (s2 = o$1(e2.button)) == null || s2.focus({ preventScroll: true });
+        var i2;
+        (i2 = o$2(e2.button)) == null || i2.focus({ preventScroll: true });
       } });
     }
-    i2();
+    u2();
   }
-  function O2() {
-    let u2 = o$1(e2.panel);
-    if (!u2)
+  function I2() {
+    let s2 = o$2(e2.panel);
+    if (!s2)
       return;
-    function i2() {
-      u$4(w2.value, { [d$3.Forwards]: () => {
-        let s2 = o$1(e2.button), n2 = o$1(e2.panel);
-        if (!s2)
+    function u2() {
+      u$4(m2.value, { [d$3.Forwards]: () => {
+        let i2 = o$2(e2.button), n2 = o$2(e2.panel);
+        if (!i2)
           return;
-        let v2 = E$4(), o2 = v2.indexOf(s2), l2 = v2.slice(0, o2 + 1), E2 = [...v2.slice(o2 + 1), ...l2];
-        for (let K of E2.slice())
-          if (K.dataset.headlessuiFocusGuard === "true" || n2 != null && n2.contains(K)) {
-            let j2 = E2.indexOf(K);
-            j2 !== -1 && E2.splice(j2, 1);
+        let v2 = E$4(), o2 = v2.indexOf(i2), a2 = v2.slice(0, o2 + 1), E2 = [...v2.slice(o2 + 1), ...a2];
+        for (let N2 of E2.slice())
+          if (N2.dataset.headlessuiFocusGuard === "true" || n2 != null && n2.contains(N2)) {
+            let $2 = E2.indexOf(N2);
+            $2 !== -1 && E2.splice($2, 1);
           }
-        P$1(E2, N$2.First, { sorted: false });
+        P$1(E2, N$3.First, { sorted: false });
       }, [d$3.Backwards]: () => {
         var n2;
-        P$1(u2, N$2.Previous) === T.Error && ((n2 = o$1(e2.button)) == null || n2.focus());
+        P$1(s2, N$3.Previous) === T$1.Error && ((n2 = o$2(e2.button)) == null || n2.focus());
       } });
     }
-    i2();
+    u2();
   }
   return () => {
-    let u2 = { open: e2.popoverState.value === 0, close: e2.close }, { id: i2, focus: s2, ...n2 } = d2, v2 = { ref: e2.panel, id: i2, onKeydown: m2, onFocusout: t2 && e2.popoverState.value === 0 ? a2 : void 0, tabIndex: -1 };
-    return H$1({ ourProps: v2, theirProps: { ...S2, ...n2 }, attrs: S2, slot: u2, slots: { ...p2, default: (...o2) => {
-      var l2;
-      return [h$2(Fragment, [g2.value && e2.isPortalled.value && h$2(f$1, { id: P2, ref: e2.beforePanelSentinel, features: a$2.Focusable, "data-headlessui-focus-guard": true, as: "button", type: "button", onFocus: y2 }), (l2 = p2.default) == null ? void 0 : l2.call(p2, ...o2), g2.value && e2.isPortalled.value && h$2(f$1, { id: F2, ref: e2.afterPanelSentinel, features: a$2.Focusable, "data-headlessui-focus-guard": true, as: "button", type: "button", onFocus: O2 })])];
-    } }, features: N$3.RenderStrategy | N$3.Static, visible: g2.value, name: "PopoverPanel" });
+    let s2 = { open: e2.popoverState.value === 0, close: e2.close }, { id: u2, focus: i2, ...n2 } = P2, v2 = { ref: e2.panel, id: u2, onKeydown: M2, onFocusout: t2 && e2.popoverState.value === 0 ? l2 : void 0, tabIndex: -1 };
+    return H$1({ ourProps: v2, theirProps: { ...b3, ...n2 }, attrs: b3, slot: s2, slots: { ...p2, default: (...o2) => {
+      var a2;
+      return [h$2(Fragment, [y2.value && e2.isPortalled.value && h$2(f$1, { id: c2, ref: e2.beforePanelSentinel, features: a$2.Focusable, "data-headlessui-focus-guard": true, as: "button", type: "button", onFocus: S2 }), (a2 = p2.default) == null ? void 0 : a2.call(p2, ...o2), y2.value && e2.isPortalled.value && h$2(f$1, { id: O2, ref: e2.afterPanelSentinel, features: a$2.Focusable, "data-headlessui-focus-guard": true, as: "button", type: "button", onFocus: I2 })])];
+    } }, features: N$4.RenderStrategy | N$4.Static, visible: y2.value, name: "PopoverPanel" });
   };
 } });
-defineComponent({ name: "PopoverGroup", props: { as: { type: [Object, String], default: "div" } }, setup(d2, { attrs: S2, slots: p2, expose: h2 }) {
-  let t2 = ref(null), e2 = shallowRef([]), c2 = computed(() => m$3(t2));
+defineComponent({ name: "PopoverGroup", inheritAttrs: false, props: { as: { type: [Object, String], default: "div" } }, setup(P2, { attrs: b3, slots: p2, expose: h2 }) {
+  let t2 = ref(null), e2 = shallowRef([]), d2 = computed(() => m$3(t2)), c2 = N$1();
   h2({ el: t2, $el: t2 });
-  function P2(m2) {
-    let a2 = e2.value.indexOf(m2);
-    a2 !== -1 && e2.value.splice(a2, 1);
+  function O2(l2) {
+    let m2 = e2.value.indexOf(l2);
+    m2 !== -1 && e2.value.splice(m2, 1);
   }
-  function F2(m2) {
-    return e2.value.push(m2), () => {
-      P2(m2);
+  function f2(l2) {
+    return e2.value.push(l2), () => {
+      O2(l2);
     };
   }
-  function f2() {
-    var w2;
-    let m2 = c2.value;
-    if (!m2)
+  function y2() {
+    var S2;
+    let l2 = d2.value;
+    if (!l2)
       return false;
-    let a2 = m2.activeElement;
-    return (w2 = o$1(t2)) != null && w2.contains(a2) ? true : e2.value.some((y2) => {
-      var O2, u2;
-      return ((O2 = m2.getElementById(y2.buttonId.value)) == null ? void 0 : O2.contains(a2)) || ((u2 = m2.getElementById(y2.panelId.value)) == null ? void 0 : u2.contains(a2));
+    let m2 = l2.activeElement;
+    return (S2 = o$2(t2)) != null && S2.contains(m2) ? true : e2.value.some((I2) => {
+      var s2, u2;
+      return ((s2 = l2.getElementById(I2.buttonId.value)) == null ? void 0 : s2.contains(m2)) || ((u2 = l2.getElementById(I2.panelId.value)) == null ? void 0 : u2.contains(m2));
     });
   }
-  function g2(m2) {
-    for (let a2 of e2.value)
-      a2.buttonId.value !== m2 && a2.close();
+  function M2(l2) {
+    for (let m2 of e2.value)
+      m2.buttonId.value !== l2 && m2.close();
   }
-  return provide(le$1, { registerPopover: F2, unregisterPopover: P2, isFocusWithinPopoverGroup: f2, closeOthers: g2 }), () => H$1({ ourProps: { ref: t2 }, theirProps: d2, slot: {}, attrs: S2, slots: p2, name: "PopoverGroup" });
+  return provide(le$1, { registerPopover: f2, unregisterPopover: O2, isFocusWithinPopoverGroup: y2, closeOthers: M2, mainTreeNodeRef: c2.mainTreeNodeRef }), () => h$2(Fragment, [H$1({ ourProps: { ref: t2 }, theirProps: { ...P2, ...b3 }, slot: {}, attrs: b3, slots: p2, name: "PopoverGroup" }), h$2(c2.MainTreeNode)]);
 } });
 let d$1 = defineComponent({ props: { onFocus: { type: Function, required: true } }, setup(t2) {
   let n2 = ref(true);
@@ -7481,17 +7515,17 @@ function k(a2) {
   return v2;
 }
 let j = Symbol("TabsSSRContext"), xe = defineComponent({ name: "TabGroup", emits: { change: (a2) => true }, props: { as: { type: [Object, String], default: "template" }, selectedIndex: { type: [Number], default: null }, defaultIndex: { type: [Number], default: 0 }, vertical: { type: [Boolean], default: false }, manual: { type: [Boolean], default: false } }, inheritAttrs: false, setup(a2, { slots: v2, attrs: i2, emit: s2 }) {
-  var h2;
-  let l2 = ref((h2 = a2.selectedIndex) != null ? h2 : a2.defaultIndex), n2 = ref([]), o2 = ref([]), T2 = computed(() => a2.selectedIndex !== null), b3 = computed(() => T2.value ? a2.selectedIndex : l2.value);
+  var P2;
+  let l2 = ref((P2 = a2.selectedIndex) != null ? P2 : a2.defaultIndex), n2 = ref([]), o2 = ref([]), h2 = computed(() => a2.selectedIndex !== null), b3 = computed(() => h2.value ? a2.selectedIndex : l2.value);
   function m2(t2) {
     var S2;
-    let e2 = O(r2.tabs.value, o$1), u2 = O(r2.panels.value, o$1), f2 = e2.filter((p2) => {
-      var E2;
-      return !((E2 = o$1(p2)) != null && E2.hasAttribute("disabled"));
+    let e2 = O$1(r2.tabs.value, o$2), u2 = O$1(r2.panels.value, o$2), f2 = e2.filter((p2) => {
+      var g2;
+      return !((g2 = o$2(p2)) != null && g2.hasAttribute("disabled"));
     });
     if (t2 < 0 || t2 > e2.length - 1) {
-      let p2 = u$4(l2.value === null ? 0 : Math.sign(t2 - l2.value), { [-1]: () => 1, [0]: () => u$4(Math.sign(t2), { [-1]: () => 0, [0]: () => 0, [1]: () => 1 }), [1]: () => 0 });
-      l2.value = u$4(p2, { [0]: () => e2.indexOf(f2[0]), [1]: () => e2.indexOf(f2[f2.length - 1]) }), r2.tabs.value = e2, r2.panels.value = u2;
+      let p2 = u$4(l2.value === null ? 0 : Math.sign(t2 - l2.value), { [-1]: () => 1, [0]: () => u$4(Math.sign(t2), { [-1]: () => 0, [0]: () => 0, [1]: () => 1 }), [1]: () => 0 }), g2 = u$4(p2, { [0]: () => e2.indexOf(f2[0]), [1]: () => e2.indexOf(f2[f2.length - 1]) });
+      g2 !== -1 && (l2.value = g2), r2.tabs.value = e2, r2.panels.value = u2;
     } else {
       let p2 = e2.slice(0, t2), G = [...e2.slice(t2), ...p2].find((W2) => f2.includes(W2));
       if (!G)
@@ -7504,50 +7538,50 @@ let j = Symbol("TabsSSRContext"), xe = defineComponent({ name: "TabGroup", emits
     var t2, e2;
     return (e2 = (t2 = l2.value) != null ? t2 : a2.defaultIndex) != null ? e2 : null;
   }), orientation: computed(() => a2.vertical ? "vertical" : "horizontal"), activation: computed(() => a2.manual ? "manual" : "auto"), tabs: n2, panels: o2, setSelectedIndex(t2) {
-    b3.value !== t2 && s2("change", t2), T2.value || m2(t2);
+    b3.value !== t2 && s2("change", t2), h2.value || m2(t2);
   }, registerTab(t2) {
     var f2;
     if (n2.value.includes(t2))
       return;
     let e2 = n2.value[l2.value];
-    n2.value.push(t2), n2.value = O(n2.value, o$1);
+    n2.value.push(t2), n2.value = O$1(n2.value, o$2);
     let u2 = (f2 = n2.value.indexOf(e2)) != null ? f2 : l2.value;
     u2 !== -1 && (l2.value = u2);
   }, unregisterTab(t2) {
     let e2 = n2.value.indexOf(t2);
     e2 !== -1 && n2.value.splice(e2, 1);
   }, registerPanel(t2) {
-    o2.value.includes(t2) || (o2.value.push(t2), o2.value = O(o2.value, o$1));
+    o2.value.includes(t2) || (o2.value.push(t2), o2.value = O$1(o2.value, o$2));
   }, unregisterPanel(t2) {
     let e2 = o2.value.indexOf(t2);
     e2 !== -1 && o2.value.splice(e2, 1);
   } };
   provide(U, r2);
-  let R2 = ref({ tabs: [], panels: [] }), y2 = ref(false);
+  let w2 = ref({ tabs: [], panels: [] }), y2 = ref(false);
   onMounted(() => {
     y2.value = true;
-  }), provide(j, computed(() => y2.value ? null : R2.value));
-  let w2 = computed(() => a2.selectedIndex);
+  }), provide(j, computed(() => y2.value ? null : w2.value));
+  let E2 = computed(() => a2.selectedIndex);
   return onMounted(() => {
-    watch([w2], () => {
+    watch([E2], () => {
       var t2;
       return m2((t2 = a2.selectedIndex) != null ? t2 : a2.defaultIndex);
     }, { immediate: true });
   }), watchEffect(() => {
-    if (!T2.value || b3.value == null || r2.tabs.value.length <= 0)
+    if (!h2.value || b3.value == null || r2.tabs.value.length <= 0)
       return;
-    let t2 = O(r2.tabs.value, o$1);
-    t2.some((u2, f2) => o$1(r2.tabs.value[f2]) !== o$1(u2)) && r2.setSelectedIndex(t2.findIndex((u2) => o$1(u2) === o$1(r2.tabs.value[b3.value])));
+    let t2 = O$1(r2.tabs.value, o$2);
+    t2.some((u2, f2) => o$2(r2.tabs.value[f2]) !== o$2(u2)) && r2.setSelectedIndex(t2.findIndex((u2) => o$2(u2) === o$2(r2.tabs.value[b3.value])));
   }), () => {
     let t2 = { selectedIndex: l2.value };
     return h$2(Fragment, [n2.value.length <= 0 && h$2(d$1, { onFocus: () => {
       for (let e2 of n2.value) {
-        let u2 = o$1(e2);
+        let u2 = o$2(e2);
         if ((u2 == null ? void 0 : u2.tabIndex) === 0)
           return u2.focus(), true;
       }
       return false;
-    } }), H$1({ theirProps: { ...i2, ...T$1(a2, ["selectedIndex", "defaultIndex", "manual", "vertical", "onChange"]) }, ourProps: {}, slot: t2, slots: v2, attrs: i2, name: "TabGroup" })]);
+    } }), H$1({ theirProps: { ...i2, ...T$2(a2, ["selectedIndex", "defaultIndex", "manual", "vertical", "onChange"]) }, ourProps: {}, slot: t2, slots: v2, attrs: i2, name: "TabGroup" })]);
   };
 } }), Ie = defineComponent({ name: "TabList", props: { as: { type: [Object, String], default: "div" } }, setup(a2, { attrs: v2, slots: i2 }) {
   let s2 = k("TabList");
@@ -7558,7 +7592,7 @@ let j = Symbol("TabsSSRContext"), xe = defineComponent({ name: "TabGroup", emits
 } }), ye = defineComponent({ name: "Tab", props: { as: { type: [Object, String], default: "button" }, disabled: { type: [Boolean], default: false }, id: { type: String, default: () => `headlessui-tabs-tab-${t$5()}` } }, setup(a2, { attrs: v2, slots: i2, expose: s2 }) {
   let l2 = k("Tab"), n2 = ref(null);
   s2({ el: n2, $el: n2 }), onMounted(() => l2.registerTab(n2)), onUnmounted(() => l2.unregisterTab(n2));
-  let o2 = inject$1(j), T$12 = computed(() => {
+  let o2 = inject$1(j), h2 = computed(() => {
     if (o2.value) {
       let e2 = o2.value.tabs.indexOf(a2.id);
       return e2 === -1 ? o2.value.tabs.push(a2.id) - 1 : e2;
@@ -7566,52 +7600,52 @@ let j = Symbol("TabsSSRContext"), xe = defineComponent({ name: "TabGroup", emits
     return -1;
   }), b3 = computed(() => {
     let e2 = l2.tabs.value.indexOf(n2);
-    return e2 === -1 ? T$12.value : e2;
+    return e2 === -1 ? h2.value : e2;
   }), m2 = computed(() => b3.value === l2.selectedIndex.value);
   function r2(e2) {
     var f2;
     let u2 = e2();
-    if (u2 === T.Success && l2.activation.value === "auto") {
-      let S2 = (f2 = m$3(n2)) == null ? void 0 : f2.activeElement, p2 = l2.tabs.value.findIndex((E2) => o$1(E2) === S2);
+    if (u2 === T$1.Success && l2.activation.value === "auto") {
+      let S2 = (f2 = m$3(n2)) == null ? void 0 : f2.activeElement, p2 = l2.tabs.value.findIndex((g2) => o$2(g2) === S2);
       p2 !== -1 && l2.setSelectedIndex(p2);
     }
     return u2;
   }
-  function R2(e2) {
-    let u2 = l2.tabs.value.map((S2) => o$1(S2)).filter(Boolean);
-    if (e2.key === o$2.Space || e2.key === o$2.Enter) {
+  function w2(e2) {
+    let u2 = l2.tabs.value.map((S2) => o$2(S2)).filter(Boolean);
+    if (e2.key === o$3.Space || e2.key === o$3.Enter) {
       e2.preventDefault(), e2.stopPropagation(), l2.setSelectedIndex(b3.value);
       return;
     }
     switch (e2.key) {
-      case o$2.Home:
-      case o$2.PageUp:
-        return e2.preventDefault(), e2.stopPropagation(), r2(() => P$1(u2, N$2.First));
-      case o$2.End:
-      case o$2.PageDown:
-        return e2.preventDefault(), e2.stopPropagation(), r2(() => P$1(u2, N$2.Last));
+      case o$3.Home:
+      case o$3.PageUp:
+        return e2.preventDefault(), e2.stopPropagation(), r2(() => P$1(u2, N$3.First));
+      case o$3.End:
+      case o$3.PageDown:
+        return e2.preventDefault(), e2.stopPropagation(), r2(() => P$1(u2, N$3.Last));
     }
     if (r2(() => u$4(l2.orientation.value, { vertical() {
-      return e2.key === o$2.ArrowUp ? P$1(u2, N$2.Previous | N$2.WrapAround) : e2.key === o$2.ArrowDown ? P$1(u2, N$2.Next | N$2.WrapAround) : T.Error;
+      return e2.key === o$3.ArrowUp ? P$1(u2, N$3.Previous | N$3.WrapAround) : e2.key === o$3.ArrowDown ? P$1(u2, N$3.Next | N$3.WrapAround) : T$1.Error;
     }, horizontal() {
-      return e2.key === o$2.ArrowLeft ? P$1(u2, N$2.Previous | N$2.WrapAround) : e2.key === o$2.ArrowRight ? P$1(u2, N$2.Next | N$2.WrapAround) : T.Error;
-    } })) === T.Success)
+      return e2.key === o$3.ArrowLeft ? P$1(u2, N$3.Previous | N$3.WrapAround) : e2.key === o$3.ArrowRight ? P$1(u2, N$3.Next | N$3.WrapAround) : T$1.Error;
+    } })) === T$1.Success)
       return e2.preventDefault();
   }
   let y2 = ref(false);
-  function w2() {
+  function E2() {
     var e2;
-    y2.value || (y2.value = true, !a2.disabled && ((e2 = o$1(n2)) == null || e2.focus(), l2.setSelectedIndex(b3.value), t$3(() => {
+    y2.value || (y2.value = true, !a2.disabled && ((e2 = o$2(n2)) == null || e2.focus({ preventScroll: true }), l2.setSelectedIndex(b3.value), t$3(() => {
       y2.value = false;
     })));
   }
-  function h2(e2) {
+  function P2(e2) {
     e2.preventDefault();
   }
   let t2 = b$1(computed(() => ({ as: a2.as, type: v2.type })), n2);
   return () => {
     var p2;
-    let e2 = { selected: m2.value }, { id: u2, ...f2 } = a2, S2 = { ref: n2, onKeydown: R2, onMousedown: h2, onClick: w2, id: u2, role: "tab", type: t2.value, "aria-controls": (p2 = o$1(l2.panels.value[b3.value])) == null ? void 0 : p2.id, "aria-selected": m2.value, tabIndex: m2.value ? 0 : -1, disabled: a2.disabled ? true : void 0 };
+    let e2 = { selected: m2.value }, { id: u2, ...f2 } = a2, S2 = { ref: n2, onKeydown: w2, onMousedown: P2, onClick: E2, id: u2, role: "tab", type: t2.value, "aria-controls": (p2 = o$2(l2.panels.value[b3.value])) == null ? void 0 : p2.id, "aria-selected": m2.value, tabIndex: m2.value ? 0 : -1, disabled: a2.disabled ? true : void 0 };
     return H$1({ ourProps: S2, theirProps: f2, slot: e2, attrs: v2, slots: i2, name: "Tab" });
   };
 } });
@@ -7625,7 +7659,7 @@ defineComponent({ name: "TabPanels", props: { as: { type: [Object, String], defa
 defineComponent({ name: "TabPanel", props: { as: { type: [Object, String], default: "div" }, static: { type: Boolean, default: false }, unmount: { type: Boolean, default: true }, id: { type: String, default: () => `headlessui-tabs-panel-${t$5()}` }, tabIndex: { type: Number, default: 0 } }, setup(a2, { attrs: v2, slots: i2, expose: s2 }) {
   let l2 = k("TabPanel"), n2 = ref(null);
   s2({ el: n2, $el: n2 }), onMounted(() => l2.registerPanel(n2)), onUnmounted(() => l2.unregisterPanel(n2));
-  let o2 = inject$1(j), T2 = computed(() => {
+  let o2 = inject$1(j), h2 = computed(() => {
     if (o2.value) {
       let r2 = o2.value.panels.indexOf(a2.id);
       return r2 === -1 ? o2.value.panels.push(a2.id) - 1 : r2;
@@ -7633,12 +7667,12 @@ defineComponent({ name: "TabPanel", props: { as: { type: [Object, String], defau
     return -1;
   }), b3 = computed(() => {
     let r2 = l2.panels.value.indexOf(n2);
-    return r2 === -1 ? T2.value : r2;
+    return r2 === -1 ? h2.value : r2;
   }), m2 = computed(() => b3.value === l2.selectedIndex.value);
   return () => {
     var t2;
-    let r2 = { selected: m2.value }, { id: R2, tabIndex: y2, ...w2 } = a2, h2 = { ref: n2, id: R2, role: "tabpanel", "aria-labelledby": (t2 = o$1(l2.tabs.value[b3.value])) == null ? void 0 : t2.id, tabIndex: m2.value ? y2 : -1 };
-    return !m2.value && a2.unmount && !a2.static ? h$2(f$1, { as: "span", ...h2 }) : H$1({ ourProps: h2, theirProps: w2, slot: r2, attrs: v2, slots: i2, features: N$3.Static | N$3.RenderStrategy, visible: m2.value, name: "TabPanel" });
+    let r2 = { selected: m2.value }, { id: w2, tabIndex: y2, ...E2 } = a2, P2 = { ref: n2, id: w2, role: "tabpanel", "aria-labelledby": (t2 = o$2(l2.tabs.value[b3.value])) == null ? void 0 : t2.id, tabIndex: m2.value ? y2 : -1 };
+    return !m2.value && a2.unmount && !a2.static ? h$2(f$1, { as: "span", ...P2 }) : H$1({ ourProps: P2, theirProps: E2, slot: r2, attrs: v2, slots: i2, features: N$4.Static | N$4.RenderStrategy, visible: m2.value, name: "TabPanel" });
   };
 } });
 function l(r2) {
@@ -7656,7 +7690,7 @@ function d(e2, ...t2) {
 }
 var g$1 = ((i2) => (i2.Finished = "finished", i2.Cancelled = "cancelled", i2))(g$1 || {});
 function F(e2, t2) {
-  let i2 = r$1();
+  let i2 = o$1();
   if (!e2)
     return i2.dispose;
   let { transitionDuration: n2, transitionDelay: a2 } = getComputedStyle(e2), [l2, s2] = [n2, a2].map((o2) => {
@@ -7666,7 +7700,7 @@ function F(e2, t2) {
   return l2 !== 0 ? i2.setTimeout(() => t2("finished"), l2 + s2) : t2("finished"), i2.add(() => t2("cancelled")), i2.dispose;
 }
 function L$1(e2, t2, i2, n2, a2, l$12) {
-  let s2 = r$1(), o2 = l$12 !== void 0 ? l(l$12) : () => {
+  let s2 = o$1(), o2 = l$12 !== void 0 ? l(l$12) : () => {
   };
   return d(e2, ...a2), m(e2, ...t2, ...i2), s2.nextFrame(() => {
     d(e2, ...i2), m(e2, ...n2), s2.add(F(e2, (u2) => (d(e2, ...n2, ...t2), m(e2, ...a2), o2(u2))));
@@ -7713,7 +7747,7 @@ function Q(e2) {
   }
   return { children: t2, register: h2, unregister: s2 };
 }
-let W = N$3.RenderStrategy, he = defineComponent({ props: { as: { type: [Object, String], default: "div" }, show: { type: [Boolean], default: null }, unmount: { type: [Boolean], default: true }, appear: { type: [Boolean], default: false }, enter: { type: [String], default: "" }, enterFrom: { type: [String], default: "" }, enterTo: { type: [String], default: "" }, entered: { type: [String], default: "" }, leave: { type: [String], default: "" }, leaveFrom: { type: [String], default: "" }, leaveTo: { type: [String], default: "" } }, emits: { beforeEnter: () => true, afterEnter: () => true, beforeLeave: () => true, afterLeave: () => true }, setup(e2, { emit: t2, attrs: a2, slots: s2, expose: h2 }) {
+let W = N$4.RenderStrategy, he = defineComponent({ props: { as: { type: [Object, String], default: "div" }, show: { type: [Boolean], default: null }, unmount: { type: [Boolean], default: true }, appear: { type: [Boolean], default: false }, enter: { type: [String], default: "" }, enterFrom: { type: [String], default: "" }, enterTo: { type: [String], default: "" }, entered: { type: [String], default: "" }, leave: { type: [String], default: "" }, leaveFrom: { type: [String], default: "" }, leaveTo: { type: [String], default: "" } }, emits: { beforeEnter: () => true, afterEnter: () => true, beforeLeave: () => true, afterLeave: () => true }, setup(e2, { emit: t2, attrs: a2, slots: s2, expose: h2 }) {
   let n2 = ref(0);
   function r2() {
     n2.value |= l$2.Opening, t2("beforeEnter");
@@ -7746,21 +7780,21 @@ let W = N$3.RenderStrategy, he = defineComponent({ props: { as: { type: [Object,
       u$4(i2.value, { ["hidden"]: () => H2(c2), ["visible"]: () => D(c2) });
     }
   });
-  let j2 = g(e2.enter), M2 = g(e2.enterFrom), X2 = g(e2.enterTo), _2 = g(e2.entered), Y = g(e2.leave), Z = g(e2.leaveFrom), ee = g(e2.leaveTo);
+  let j2 = g(e2.enter), M2 = g(e2.enterFrom), X2 = g(e2.enterTo), _2 = g(e2.entered), Y2 = g(e2.leave), Z = g(e2.leaveFrom), ee = g(e2.leaveTo);
   onMounted(() => {
     watchEffect(() => {
       if (i2.value === "visible") {
-        let o2 = o$1(d2);
+        let o2 = o$2(d2);
         if (o2 instanceof Comment && o2.data === "")
           throw new Error("Did you forget to passthrough the `ref` to the actual DOM node?");
       }
     });
   });
   function te2(o2) {
-    let E2 = I2.value && !A2.value, p2 = o$1(d2);
+    let E2 = I2.value && !A2.value, p2 = o$2(d2);
     !p2 || !(p2 instanceof HTMLElement) || E2 || (y2.value = true, v2.value && r2(), v2.value || f2(), o2(v2.value ? L$1(p2, j2, M2, X2, _2, (V2) => {
       y2.value = false, V2 === g$1.Finished && l2();
-    }) : L$1(p2, Y, Z, ee, _2, (V2) => {
+    }) : L$1(p2, Y2, Z, ee, _2, (V2) => {
       y2.value = false, V2 === g$1.Finished && (L(P2) || (i2.value = "hidden", H2(c2), S2()));
     })));
   }
@@ -7769,11 +7803,11 @@ let W = N$3.RenderStrategy, he = defineComponent({ props: { as: { type: [Object,
       te2(p2), I2.value = false;
     }, { immediate: true });
   }), provide(N, P2), c$4(computed(() => u$4(i2.value, { ["visible"]: l$2.Open, ["hidden"]: l$2.Closed }) | n2.value)), () => {
-    let { appear: o2, show: E2, enter: p2, enterFrom: V2, enterTo: Ce, entered: be2, leave: ye2, leaveFrom: Ee, leaveTo: Ve, ...U2 } = e2, ne = { ref: d2 }, re2 = { ...U2, ...A2.value && v2.value && c$3.isServer ? { class: normalizeClass([a2.class, U2.class, ...j2, ...M2]) } : {} };
+    let { appear: o2, show: E2, enter: p2, enterFrom: V2, enterTo: Ce, entered: be, leave: ye2, leaveFrom: Ee, leaveTo: Ve, ...U2 } = e2, ne = { ref: d2 }, re2 = { ...U2, ...A2.value && v2.value && c$3.isServer ? { class: normalizeClass([a2.class, U2.class, ...j2, ...M2]) } : {} };
     return H$1({ theirProps: re2, ourProps: ne, slot: {}, slots: s2, attrs: a2, features: W, visible: i2.value === "visible", name: "TransitionChild" });
   };
 } }), ce = he, Se = defineComponent({ inheritAttrs: false, props: { as: { type: [Object, String], default: "div" }, show: { type: [Boolean], default: null }, unmount: { type: [Boolean], default: true }, appear: { type: [Boolean], default: false }, enter: { type: [String], default: "" }, enterFrom: { type: [String], default: "" }, enterTo: { type: [String], default: "" }, entered: { type: [String], default: "" }, leave: { type: [String], default: "" }, leaveFrom: { type: [String], default: "" }, leaveTo: { type: [String], default: "" } }, emits: { beforeEnter: () => true, afterEnter: () => true, beforeLeave: () => true, afterLeave: () => true }, setup(e2, { emit: t2, attrs: a2, slots: s2 }) {
-  let h2 = p$4(), n2 = computed(() => e2.show === null && h2 !== null ? (h2.value & l$2.Open) === l$2.Open : e2.show);
+  let h2 = p$3(), n2 = computed(() => e2.show === null && h2 !== null ? (h2.value & l$2.Open) === l$2.Open : e2.show);
   watchEffect(() => {
     if (![true, false].includes(n2.value))
       throw new Error('A <Transition /> is used but it is missing a `:show="true | false"` prop.');
@@ -7786,7 +7820,7 @@ let W = N$3.RenderStrategy, he = defineComponent({ props: { as: { type: [Object,
       f2.value = false, n2.value ? r2.value = "visible" : L(l2) || (r2.value = "hidden");
     });
   }), provide(N, l2), provide(R, S2), () => {
-    let d2 = T$1(e2, ["show", "appear", "unmount", "onBeforeEnter", "onBeforeLeave", "onAfterEnter", "onAfterLeave"]), b3 = { unmount: e2.unmount };
+    let d2 = T$2(e2, ["show", "appear", "unmount", "onBeforeEnter", "onBeforeLeave", "onAfterEnter", "onAfterLeave"]), b3 = { unmount: e2.unmount };
     return H$1({ ourProps: { ...b3, as: "template" }, theirProps: {}, slot: {}, slots: { ...s2, default: () => [h$2(ce, { onBeforeEnter: () => t2("beforeEnter"), onAfterEnter: () => t2("afterEnter"), onBeforeLeave: () => t2("beforeLeave"), onAfterLeave: () => t2("afterLeave"), ...a2, ...b3, ...d2 }, s2.default)] }, attrs: {}, features: W, visible: r2.value === "visible", name: "Transition" });
   };
 } });
@@ -7803,7 +7837,7 @@ const _hoisted_3$x = [
   _hoisted_2$B
 ];
 function render$k(_ctx, _cache) {
-  return openBlock(), createElementBlock("svg", _hoisted_1$L, _hoisted_3$x);
+  return openBlock(), createElementBlock("svg", _hoisted_1$L, [..._hoisted_3$x]);
 }
 var __unplugin_components_0$7 = { name: "carbon-chevron-up", render: render$k };
 var _export_sfc = (sfc, props2) => {
@@ -7816,9 +7850,9 @@ var _export_sfc = (sfc, props2) => {
 const _sfc_main$z = {};
 function _sfc_render$5(_ctx, _cache) {
   const _component_i_carbon_chevron_up = __unplugin_components_0$7;
-  const _component_DisclosureButton = V;
-  const _component_DisclosurePanel = X;
-  const _component_Disclosure = Q$1;
+  const _component_DisclosureButton = X;
+  const _component_DisclosurePanel = Y;
+  const _component_Disclosure = V$1;
   return openBlock(), createBlock(_component_Disclosure, { "default-open": "" }, {
     default: withCtx(({ open }) => [
       createVNode(_component_DisclosureButton, { class: "flex items-center transition justify-between w-full px-2 py-1 my-1 text-sm font-medium text-left border-2 border-blue-900/30 text-blue-900/70 hover:text-blue-700 hover:bg-blue-200 dark:border-none dark:bg-blue-900/30 dark:text-blue-100 dark:hover:bg-blue-900/50 dark:hover:text-blue-50 rounded-lg focus:outline-none focus-visible:ring focus-visible:ring-blue-500 focus-visible:ring-opacity-75" }, {
@@ -8019,7 +8053,7 @@ function baseToString$1(value) {
   var result = value + "";
   return result == "0" && 1 / value == -INFINITY$2 ? "-0" : result;
 }
-function isObject$1(value) {
+function isObject$2(value) {
   var type = typeof value;
   return value != null && (type == "object" || type == "function");
 }
@@ -8028,7 +8062,7 @@ function identity(value) {
 }
 var asyncTag = "[object AsyncFunction]", funcTag$1 = "[object Function]", genTag = "[object GeneratorFunction]", proxyTag = "[object Proxy]";
 function isFunction(value) {
-  if (!isObject$1(value)) {
+  if (!isObject$2(value)) {
     return false;
   }
   var tag = baseGetTag(value);
@@ -8067,7 +8101,7 @@ var reIsNative = RegExp(
   "^" + funcToString.call(hasOwnProperty$9).replace(reRegExpChar, "\\$&").replace(/hasOwnProperty|(function).*?(?=\\\()| for .+?(?=\\\])/g, "$1.*?") + "$"
 );
 function baseIsNative(value) {
-  if (!isObject$1(value) || isMasked(value)) {
+  if (!isObject$2(value) || isMasked(value)) {
     return false;
   }
   var pattern = isFunction(value) ? reIsNative : reIsHostCtor;
@@ -8429,14 +8463,14 @@ var stringToPath = memoizeCapped(function(string) {
   return result;
 });
 var stringToPath$1 = stringToPath;
-function toString$1(value) {
+function toString$2(value) {
   return value == null ? "" : baseToString$1(value);
 }
 function castPath(value, object) {
   if (isArray$2(value)) {
     return value;
   }
-  return isKey(value, object) ? [value] : stringToPath$1(toString$1(value));
+  return isKey(value, object) ? [value] : stringToPath$1(toString$2(value));
 }
 var INFINITY$1 = 1 / 0;
 function toKey(value) {
@@ -8508,7 +8542,7 @@ function stringToArray(string) {
 }
 function createCaseFirst(methodName) {
   return function(string) {
-    string = toString$1(string);
+    string = toString$2(string);
     var strSymbols = hasUnicode(string) ? stringToArray(string) : void 0;
     var chr = strSymbols ? strSymbols[0] : string.charAt(0);
     var trailing = strSymbols ? castSlice(strSymbols, 1).join("") : string.slice(1);
@@ -8731,7 +8765,7 @@ var rsComboMarksRange$1 = "\\u0300-\\u036f", reComboHalfMarksRange$1 = "\\ufe20-
 var rsCombo$1 = "[" + rsComboRange$1 + "]";
 var reComboMark = RegExp(rsCombo$1, "g");
 function deburr(string) {
-  string = toString$1(string);
+  string = toString$2(string);
   return string && string.replace(reLatin, deburrLetter$1).replace(reComboMark, "");
 }
 var reAsciiWord = /[^\x00-\x2f\x3a-\x40\x5b-\x60\x7b-\x7f]+/g;
@@ -8759,7 +8793,7 @@ function unicodeWords(string) {
   return string.match(reUnicodeWord) || [];
 }
 function words(string, pattern, guard) {
-  string = toString$1(string);
+  string = toString$2(string);
   pattern = guard ? void 0 : pattern;
   if (pattern === void 0) {
     return hasUnicodeWord(string) ? unicodeWords(string) : asciiWords(string);
@@ -9138,7 +9172,7 @@ function baseIsMatch(object, source, matchData, customizer) {
   return true;
 }
 function isStrictComparable(value) {
-  return value === value && !isObject$1(value);
+  return value === value && !isObject$2(value);
 }
 function getMatchData(object) {
   var result = keys(object), length = result.length;
@@ -9549,7 +9583,7 @@ function createEventHook() {
     };
   };
   const trigger2 = (param) => {
-    return Promise.all(Array.from(fns).map((fn) => fn(param)));
+    return Promise.all(Array.from(fns).map((fn) => param ? fn(param) : fn()));
   };
   return {
     on,
@@ -9560,7 +9594,10 @@ function createEventHook() {
 function toValue(r2) {
   return typeof r2 === "function" ? r2() : unref(r2);
 }
-const isClient = typeof window !== "undefined";
+const isClient = typeof window !== "undefined" && typeof document !== "undefined";
+typeof WorkerGlobalScope !== "undefined" && globalThis instanceof WorkerGlobalScope;
+const toString$1 = Object.prototype.toString;
+const isObject$1 = (val) => toString$1.call(val) === "[object Object]";
 const noop = () => {
 };
 function createFilterWrapper(filter, fn) {
@@ -9604,6 +9641,44 @@ function toRef(...args) {
     return toRef$1(...args);
   const r2 = args[0];
   return typeof r2 === "function" ? readonly(customRef(() => ({ get: r2, set: noop }))) : ref(r2);
+}
+function watchWithFilter(source, cb, options = {}) {
+  const {
+    eventFilter = bypassFilter,
+    ...watchOptions
+  } = options;
+  return watch(
+    source,
+    createFilterWrapper(
+      eventFilter,
+      cb
+    ),
+    watchOptions
+  );
+}
+function watchPausable(source, cb, options = {}) {
+  const {
+    eventFilter: filter,
+    ...watchOptions
+  } = options;
+  const { eventFilter, pause, resume, isActive } = pausableFilter(filter);
+  const stop = watchWithFilter(
+    source,
+    cb,
+    {
+      ...watchOptions,
+      eventFilter
+    }
+  );
+  return { stop, pause, resume, isActive };
+}
+function tryOnMounted(fn, sync = true) {
+  if (getCurrentInstance())
+    onMounted(fn);
+  else if (sync)
+    fn();
+  else
+    nextTick(fn);
 }
 function createUntil(r2, isNot = false) {
   function toMatch(condition, { flush = "sync", deep = false, timeout, throwOnTimeout } = {}) {
@@ -9782,83 +9857,6 @@ function useToggle(initialValue = false, options = {}) {
   else
     return [_value, toggle];
 }
-var __getOwnPropSymbols$8 = Object.getOwnPropertySymbols;
-var __hasOwnProp$8 = Object.prototype.hasOwnProperty;
-var __propIsEnum$8 = Object.prototype.propertyIsEnumerable;
-var __objRest$5 = (source, exclude) => {
-  var target = {};
-  for (var prop in source)
-    if (__hasOwnProp$8.call(source, prop) && exclude.indexOf(prop) < 0)
-      target[prop] = source[prop];
-  if (source != null && __getOwnPropSymbols$8)
-    for (var prop of __getOwnPropSymbols$8(source)) {
-      if (exclude.indexOf(prop) < 0 && __propIsEnum$8.call(source, prop))
-        target[prop] = source[prop];
-    }
-  return target;
-};
-function watchWithFilter(source, cb, options = {}) {
-  const _a2 = options, {
-    eventFilter = bypassFilter
-  } = _a2, watchOptions = __objRest$5(_a2, [
-    "eventFilter"
-  ]);
-  return watch(
-    source,
-    createFilterWrapper(
-      eventFilter,
-      cb
-    ),
-    watchOptions
-  );
-}
-var __defProp$2 = Object.defineProperty;
-var __defProps$2 = Object.defineProperties;
-var __getOwnPropDescs$2 = Object.getOwnPropertyDescriptors;
-var __getOwnPropSymbols$2 = Object.getOwnPropertySymbols;
-var __hasOwnProp$2 = Object.prototype.hasOwnProperty;
-var __propIsEnum$2 = Object.prototype.propertyIsEnumerable;
-var __defNormalProp$2 = (obj, key, value) => key in obj ? __defProp$2(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __spreadValues$2 = (a2, b3) => {
-  for (var prop in b3 || (b3 = {}))
-    if (__hasOwnProp$2.call(b3, prop))
-      __defNormalProp$2(a2, prop, b3[prop]);
-  if (__getOwnPropSymbols$2)
-    for (var prop of __getOwnPropSymbols$2(b3)) {
-      if (__propIsEnum$2.call(b3, prop))
-        __defNormalProp$2(a2, prop, b3[prop]);
-    }
-  return a2;
-};
-var __spreadProps$2 = (a2, b3) => __defProps$2(a2, __getOwnPropDescs$2(b3));
-var __objRest$1 = (source, exclude) => {
-  var target = {};
-  for (var prop in source)
-    if (__hasOwnProp$2.call(source, prop) && exclude.indexOf(prop) < 0)
-      target[prop] = source[prop];
-  if (source != null && __getOwnPropSymbols$2)
-    for (var prop of __getOwnPropSymbols$2(source)) {
-      if (exclude.indexOf(prop) < 0 && __propIsEnum$2.call(source, prop))
-        target[prop] = source[prop];
-    }
-  return target;
-};
-function watchPausable(source, cb, options = {}) {
-  const _a2 = options, {
-    eventFilter: filter
-  } = _a2, watchOptions = __objRest$1(_a2, [
-    "eventFilter"
-  ]);
-  const { eventFilter, pause, resume, isActive } = pausableFilter(filter);
-  const stop = watchWithFilter(
-    source,
-    cb,
-    __spreadProps$2(__spreadValues$2({}, watchOptions), {
-      eventFilter
-    })
-  );
-  return { stop, pause, resume, isActive };
-}
 function unrefElement(elRef) {
   var _a2;
   const plain = toValue(elRef);
@@ -9898,9 +9896,10 @@ function useEventListener(...args) {
       cleanup();
       if (!el)
         return;
+      const optionsClone = isObject$1(options2) ? { ...options2 } : options2;
       cleanups.push(
         ...events.flatMap((event) => {
-          return listeners.map((listener) => register2(el, event, listener, options2));
+          return listeners.map((listener) => register2(el, event, listener, optionsClone));
         })
       );
     },
@@ -9943,22 +9942,6 @@ function getSSRHandler(key, fallback) {
 function guessSerializerType(rawInit) {
   return rawInit == null ? "any" : rawInit instanceof Set ? "set" : rawInit instanceof Map ? "map" : rawInit instanceof Date ? "date" : typeof rawInit === "boolean" ? "boolean" : typeof rawInit === "string" ? "string" : typeof rawInit === "object" ? "object" : !Number.isNaN(rawInit) ? "number" : "any";
 }
-var __defProp$l = Object.defineProperty;
-var __getOwnPropSymbols$o = Object.getOwnPropertySymbols;
-var __hasOwnProp$o = Object.prototype.hasOwnProperty;
-var __propIsEnum$o = Object.prototype.propertyIsEnumerable;
-var __defNormalProp$l = (obj, key, value) => key in obj ? __defProp$l(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __spreadValues$l = (a2, b3) => {
-  for (var prop in b3 || (b3 = {}))
-    if (__hasOwnProp$o.call(b3, prop))
-      __defNormalProp$l(a2, prop, b3[prop]);
-  if (__getOwnPropSymbols$o)
-    for (var prop of __getOwnPropSymbols$o(b3)) {
-      if (__propIsEnum$o.call(b3, prop))
-        __defNormalProp$l(a2, prop, b3[prop]);
-    }
-  return a2;
-};
 const StorageSerializers = {
   boolean: {
     read: (v2) => v2 === "true",
@@ -10007,9 +9990,10 @@ function useStorage(key, defaults, storage, options = {}) {
     eventFilter,
     onError = (e2) => {
       console.error(e2);
-    }
+    },
+    initOnMounted
   } = options;
-  const data = (shallow ? shallowRef : ref)(defaults);
+  const data = (shallow ? shallowRef : ref)(typeof defaults === "function" ? defaults() : defaults);
   if (!storage) {
     try {
       storage = getSSRHandler("getDefaultStorage", () => {
@@ -10031,10 +10015,15 @@ function useStorage(key, defaults, storage, options = {}) {
     { flush, deep, eventFilter }
   );
   if (window2 && listenToStorageChanges) {
-    useEventListener(window2, "storage", update);
-    useEventListener(window2, customStorageEventName, updateFromCustomEvent);
+    tryOnMounted(() => {
+      useEventListener(window2, "storage", update);
+      useEventListener(window2, customStorageEventName, updateFromCustomEvent);
+      if (initOnMounted)
+        update();
+    });
   }
-  update();
+  if (!initOnMounted)
+    update();
   return data;
   function write(v2) {
     try {
@@ -10072,7 +10061,7 @@ function useStorage(key, defaults, storage, options = {}) {
       if (typeof mergeDefaults === "function")
         return mergeDefaults(value, rawInit);
       else if (type === "object" && !Array.isArray(value))
-        return __spreadValues$l(__spreadValues$l({}, rawInit), value);
+        return { ...rawInit, ...value };
       return value;
     } else if (typeof rawValue !== "string") {
       return rawValue;
@@ -10094,7 +10083,8 @@ function useStorage(key, defaults, storage, options = {}) {
       return;
     pauseWatch();
     try {
-      data.value = read(event);
+      if ((event == null ? void 0 : event.newValue) !== serializer.write(data.value))
+        data.value = read(event);
     } catch (e2) {
       onError(e2);
     } finally {
@@ -10105,23 +10095,8 @@ function useStorage(key, defaults, storage, options = {}) {
     }
   }
 }
-var __getOwnPropSymbols$m = Object.getOwnPropertySymbols;
-var __hasOwnProp$m = Object.prototype.hasOwnProperty;
-var __propIsEnum$m = Object.prototype.propertyIsEnumerable;
-var __objRest$3 = (source, exclude) => {
-  var target = {};
-  for (var prop in source)
-    if (__hasOwnProp$m.call(source, prop) && exclude.indexOf(prop) < 0)
-      target[prop] = source[prop];
-  if (source != null && __getOwnPropSymbols$m)
-    for (var prop of __getOwnPropSymbols$m(source)) {
-      if (exclude.indexOf(prop) < 0 && __propIsEnum$m.call(source, prop))
-        target[prop] = source[prop];
-    }
-  return target;
-};
 function useMutationObserver(target, callback, options = {}) {
-  const _a2 = options, { window: window2 = defaultWindow } = _a2, mutationOptions = __objRest$3(_a2, ["window"]);
+  const { window: window2 = defaultWindow, ...mutationOptions } = options;
   let observer;
   const isSupported = useSupported(() => window2 && "MutationObserver" in window2);
   const cleanup = () => {
@@ -10141,6 +10116,9 @@ function useMutationObserver(target, callback, options = {}) {
     },
     { immediate: true }
   );
+  const takeRecords = () => {
+    return observer == null ? void 0 : observer.takeRecords();
+  };
   const stop = () => {
     cleanup();
     stopWatch();
@@ -10148,7 +10126,8 @@ function useMutationObserver(target, callback, options = {}) {
   tryOnScopeDispose(stop);
   return {
     isSupported,
-    stop
+    stop,
+    takeRecords
   };
 }
 function useElementHover(el, options = {}) {
@@ -10176,31 +10155,12 @@ function useElementHover(el, options = {}) {
   useEventListener(el, "mouseleave", () => toggle(false), { passive: true });
   return isHovered;
 }
-var __defProp$e = Object.defineProperty;
-var __defProps$5 = Object.defineProperties;
-var __getOwnPropDescs$5 = Object.getOwnPropertyDescriptors;
-var __getOwnPropSymbols$f = Object.getOwnPropertySymbols;
-var __hasOwnProp$f = Object.prototype.hasOwnProperty;
-var __propIsEnum$f = Object.prototype.propertyIsEnumerable;
-var __defNormalProp$e = (obj, key, value) => key in obj ? __defProp$e(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
-var __spreadValues$e = (a2, b3) => {
-  for (var prop in b3 || (b3 = {}))
-    if (__hasOwnProp$f.call(b3, prop))
-      __defNormalProp$e(a2, prop, b3[prop]);
-  if (__getOwnPropSymbols$f)
-    for (var prop of __getOwnPropSymbols$f(b3)) {
-      if (__propIsEnum$f.call(b3, prop))
-        __defNormalProp$e(a2, prop, b3[prop]);
-    }
-  return a2;
-};
-var __spreadProps$5 = (a2, b3) => __defProps$5(a2, __getOwnPropDescs$5(b3));
 const payloadMapping = {
   json: "application/json",
   text: "text/plain"
 };
 function isFetchOptions(obj) {
-  return obj && containsProp(obj, "immediate", "refetch", "initialData", "timeout", "beforeFetch", "afterFetch", "onFetchError", "fetch");
+  return obj && containsProp(obj, "immediate", "refetch", "initialData", "timeout", "beforeFetch", "afterFetch", "onFetchError", "fetch", "updateDataOnError");
 }
 function isAbsoluteURL(url) {
   return /^([a-z][a-z\d+\-.]*:)?\/\//i.test(url);
@@ -10215,14 +10175,14 @@ function combineCallbacks(combination, ...callbacks) {
     return async (ctx) => {
       const callback = callbacks[callbacks.length - 1];
       if (callback)
-        return __spreadValues$e(__spreadValues$e({}, ctx), await callback(ctx));
+        return { ...ctx, ...await callback(ctx) };
       return ctx;
     };
   } else {
     return async (ctx) => {
       for (const callback of callbacks) {
         if (callback)
-          ctx = __spreadValues$e(__spreadValues$e({}, ctx), await callback(ctx));
+          ctx = { ...ctx, ...await callback(ctx) };
       }
       return ctx;
     };
@@ -10242,23 +10202,32 @@ function createFetch(config = {}) {
     let fetchOptions = _fetchOptions;
     if (args.length > 0) {
       if (isFetchOptions(args[0])) {
-        options = __spreadProps$5(__spreadValues$e(__spreadValues$e({}, options), args[0]), {
+        options = {
+          ...options,
+          ...args[0],
           beforeFetch: combineCallbacks(_combination, _options.beforeFetch, args[0].beforeFetch),
           afterFetch: combineCallbacks(_combination, _options.afterFetch, args[0].afterFetch),
           onFetchError: combineCallbacks(_combination, _options.onFetchError, args[0].onFetchError)
-        });
+        };
       } else {
-        fetchOptions = __spreadProps$5(__spreadValues$e(__spreadValues$e({}, fetchOptions), args[0]), {
-          headers: __spreadValues$e(__spreadValues$e({}, headersToObject(fetchOptions.headers) || {}), headersToObject(args[0].headers) || {})
-        });
+        fetchOptions = {
+          ...fetchOptions,
+          ...args[0],
+          headers: {
+            ...headersToObject(fetchOptions.headers) || {},
+            ...headersToObject(args[0].headers) || {}
+          }
+        };
       }
     }
     if (args.length > 1 && isFetchOptions(args[1])) {
-      options = __spreadProps$5(__spreadValues$e(__spreadValues$e({}, options), args[1]), {
+      options = {
+        ...options,
+        ...args[1],
         beforeFetch: combineCallbacks(_combination, _options.beforeFetch, args[1].beforeFetch),
         afterFetch: combineCallbacks(_combination, _options.afterFetch, args[1].afterFetch),
         onFetchError: combineCallbacks(_combination, _options.onFetchError, args[1].onFetchError)
-      });
+      };
     }
     return useFetch$1(computedUrl, fetchOptions, options);
   }
@@ -10268,7 +10237,12 @@ function useFetch$1(url, ...args) {
   var _a2;
   const supportsAbort = typeof AbortController === "function";
   let fetchOptions = {};
-  let options = { immediate: true, refetch: false, timeout: 0 };
+  let options = {
+    immediate: true,
+    refetch: false,
+    timeout: 0,
+    updateDataOnError: false
+  };
   const config = {
     method: "GET",
     type: "text",
@@ -10276,13 +10250,13 @@ function useFetch$1(url, ...args) {
   };
   if (args.length > 0) {
     if (isFetchOptions(args[0]))
-      options = __spreadValues$e(__spreadValues$e({}, options), args[0]);
+      options = { ...options, ...args[0] };
     else
       fetchOptions = args[0];
   }
   if (args.length > 1) {
     if (isFetchOptions(args[1]))
-      options = __spreadValues$e(__spreadValues$e({}, options), args[1]);
+      options = { ...options, ...args[1] };
   }
   const {
     fetch: fetch2 = (_a2 = defaultWindow) == null ? void 0 : _a2.fetch,
@@ -10307,9 +10281,10 @@ function useFetch$1(url, ...args) {
       controller == null ? void 0 : controller.abort();
       controller = new AbortController();
       controller.signal.onabort = () => aborted.value = true;
-      fetchOptions = __spreadProps$5(__spreadValues$e({}, fetchOptions), {
+      fetchOptions = {
+        ...fetchOptions,
         signal: controller.signal
-      });
+      };
     }
   };
   const loading2 = (isLoading) => {
@@ -10318,6 +10293,7 @@ function useFetch$1(url, ...args) {
   };
   if (timeout)
     timer = useTimeoutFn(abort, timeout, { immediate: false });
+  let executeCounter = 0;
   const execute = async (throwOnFailed = false) => {
     var _a22;
     abort();
@@ -10325,21 +10301,28 @@ function useFetch$1(url, ...args) {
     error.value = null;
     statusCode.value = null;
     aborted.value = false;
+    executeCounter += 1;
+    const currentExecuteCounter = executeCounter;
     const defaultFetchOptions = {
       method: config.method,
       headers: {}
     };
     if (config.payload) {
       const headers = headersToObject(defaultFetchOptions.headers);
+      const payload = toValue(config.payload);
+      if (!config.payloadType && payload && Object.getPrototypeOf(payload) === Object.prototype && !(payload instanceof FormData))
+        config.payloadType = "json";
       if (config.payloadType)
         headers["Content-Type"] = (_a22 = payloadMapping[config.payloadType]) != null ? _a22 : config.payloadType;
-      const payload = toValue(config.payload);
       defaultFetchOptions.body = config.payloadType === "json" ? JSON.stringify(payload) : payload;
     }
     let isCanceled = false;
     const context = {
       url: toValue(url),
-      options: __spreadValues$e(__spreadValues$e({}, defaultFetchOptions), fetchOptions),
+      options: {
+        ...defaultFetchOptions,
+        ...fetchOptions
+      },
       cancel: () => {
         isCanceled = true;
       }
@@ -10357,9 +10340,14 @@ function useFetch$1(url, ...args) {
       var _a3;
       fetch2(
         context.url,
-        __spreadProps$5(__spreadValues$e(__spreadValues$e({}, defaultFetchOptions), context.options), {
-          headers: __spreadValues$e(__spreadValues$e({}, headersToObject(defaultFetchOptions.headers)), headersToObject((_a3 = context.options) == null ? void 0 : _a3.headers))
-        })
+        {
+          ...defaultFetchOptions,
+          ...context.options,
+          headers: {
+            ...headersToObject(defaultFetchOptions.headers),
+            ...headersToObject((_a3 = context.options) == null ? void 0 : _a3.headers)
+          }
+        }
       ).then(async (fetchResponse) => {
         response.value = fetchResponse;
         statusCode.value = fetchResponse.status;
@@ -10368,22 +10356,34 @@ function useFetch$1(url, ...args) {
           data.value = initialData || null;
           throw new Error(fetchResponse.statusText);
         }
-        if (options.afterFetch)
-          ({ data: responseData } = await options.afterFetch({ data: responseData, response: fetchResponse }));
+        if (options.afterFetch) {
+          ({ data: responseData } = await options.afterFetch({
+            data: responseData,
+            response: fetchResponse
+          }));
+        }
         data.value = responseData;
         responseEvent.trigger(fetchResponse);
         return resolve2(fetchResponse);
       }).catch(async (fetchError) => {
         let errorData = fetchError.message || fetchError.name;
-        if (options.onFetchError)
-          ({ error: errorData } = await options.onFetchError({ data: responseData, error: fetchError, response: response.value }));
+        if (options.onFetchError) {
+          ({ error: errorData, data: responseData } = await options.onFetchError({
+            data: responseData,
+            error: fetchError,
+            response: response.value
+          }));
+        }
         error.value = errorData;
+        if (options.updateDataOnError)
+          data.value = responseData;
         errorEvent.trigger(fetchError);
         if (throwOnFailed)
           return reject(fetchError);
         return resolve2(null);
       }).finally(() => {
-        loading2(false);
+        if (currentExecuteCounter === executeCounter)
+          loading2(false);
         if (timer)
           timer.stop();
         finallyEvent.trigger(null);
@@ -10442,14 +10442,12 @@ function useFetch$1(url, ...args) {
             { deep: true }
           );
         }
-        const rawPayload = toValue(config.payload);
-        if (!payloadType && rawPayload && Object.getPrototypeOf(rawPayload) === Object.prototype && !(rawPayload instanceof FormData))
-          config.payloadType = "json";
-        return __spreadProps$5(__spreadValues$e({}, shell), {
+        return {
+          ...shell,
           then(onFulfilled, onRejected) {
             return waitUntilFinished().then(onFulfilled, onRejected);
           }
-        });
+        };
       }
       return void 0;
     };
@@ -10463,22 +10461,24 @@ function useFetch$1(url, ...args) {
     return () => {
       if (!isFetching.value) {
         config.type = type;
-        return __spreadProps$5(__spreadValues$e({}, shell), {
+        return {
+          ...shell,
           then(onFulfilled, onRejected) {
             return waitUntilFinished().then(onFulfilled, onRejected);
           }
-        });
+        };
       }
       return void 0;
     };
   }
   if (options.immediate)
     Promise.resolve().then(() => execute());
-  return __spreadProps$5(__spreadValues$e({}, shell), {
+  return {
+    ...shell,
     then(onFulfilled, onRejected) {
       return waitUntilFinished().then(onFulfilled, onRejected);
     }
-  });
+  };
 }
 function joinPaths(start, end) {
   if (!start.endsWith("/") && !end.startsWith("/"))
@@ -10553,7 +10553,7 @@ const _hoisted_3$v = [
   _hoisted_2$z
 ];
 function render$j(_ctx, _cache) {
-  return openBlock(), createElementBlock("svg", _hoisted_1$H, _hoisted_3$v);
+  return openBlock(), createElementBlock("svg", _hoisted_1$H, [..._hoisted_3$v]);
 }
 var __unplugin_components_2 = { name: "la-markdown", render: render$j };
 const _hoisted_1$G = {
@@ -10579,7 +10579,7 @@ const _hoisted_5$9 = [
   _hoisted_4$e
 ];
 function render$i(_ctx, _cache) {
-  return openBlock(), createElementBlock("svg", _hoisted_1$G, _hoisted_5$9);
+  return openBlock(), createElementBlock("svg", _hoisted_1$G, [..._hoisted_5$9]);
 }
 var __unplugin_components_1$2 = { name: "logos-vue", render: render$i };
 const _sfc_main$u = {};
@@ -11088,6 +11088,9 @@ function decode(text = "") {
 function decodePath(text) {
   return decode(text.replace(ENC_SLASH_RE, "%252F"));
 }
+function decodeQueryKey(text) {
+  return decode(text.replace(PLUS_RE, " "));
+}
 function decodeQueryValue(text) {
   return decode(text.replace(PLUS_RE, " "));
 }
@@ -11104,19 +11107,17 @@ function parseQuery$1(parametersString = "") {
     if (s2.length < 2) {
       continue;
     }
-    const key = decode(s2[1]);
+    const key = decodeQueryKey(s2[1]);
     if (key === "__proto__" || key === "constructor") {
       continue;
     }
     const value = decodeQueryValue(s2[2] || "");
-    if (typeof object[key] !== "undefined") {
-      if (Array.isArray(object[key])) {
-        object[key].push(value);
-      } else {
-        object[key] = [object[key], value];
-      }
-    } else {
+    if (object[key] === void 0) {
       object[key] = value;
+    } else if (Array.isArray(object[key])) {
+      object[key].push(value);
+    } else {
+      object[key] = [object[key], value];
     }
   }
   return object;
@@ -11134,11 +11135,22 @@ function encodeQueryItem(key, value) {
   return `${encodeQueryKey(key)}=${encodeQueryValue(value)}`;
 }
 function stringifyQuery(query) {
-  return Object.keys(query).filter((k2) => query[k2] !== void 0).map((k2) => encodeQueryItem(k2, query[k2])).join("&");
+  return Object.keys(query).filter((k2) => query[k2] !== void 0).map((k2) => encodeQueryItem(k2, query[k2])).filter(Boolean).join("&");
 }
+var __defProp = Object.defineProperty;
+var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
+var __publicField = (obj, key, value) => {
+  __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
+  return value;
+};
 class $URL {
   constructor(input = "") {
-    this.query = {};
+    __publicField(this, "protocol");
+    __publicField(this, "host");
+    __publicField(this, "auth");
+    __publicField(this, "pathname");
+    __publicField(this, "query", {});
+    __publicField(this, "hash");
     if (typeof input !== "string") {
       throw new TypeError(
         `URL input should be string received ${typeof input} (${input})`
@@ -11228,8 +11240,8 @@ class $URL {
     return this.href;
   }
 }
-const PROTOCOL_STRICT_REGEX = /^\w{2,}:([/\\]{1,2})/;
-const PROTOCOL_REGEX = /^\w{2,}:([/\\]{2})?/;
+const PROTOCOL_STRICT_REGEX = /^[\s\w\0+.-]{2,}:([/\\]{1,2})/;
+const PROTOCOL_REGEX = /^[\s\w\0+.-]{2,}:([/\\]{2})?/;
 const PROTOCOL_RELATIVE_REGEX = /^([/\\]\s*){2,}[^/\\]/;
 function hasProtocol(inputString, opts = {}) {
   if (typeof opts === "boolean") {
@@ -11240,32 +11252,49 @@ function hasProtocol(inputString, opts = {}) {
   }
   return PROTOCOL_REGEX.test(inputString) || (opts.acceptRelative ? PROTOCOL_RELATIVE_REGEX.test(inputString) : false);
 }
-const TRAILING_SLASH_RE = /\/$|\/\?/;
-function hasTrailingSlash(input = "", queryParameters = false) {
-  if (!queryParameters) {
+const TRAILING_SLASH_RE = /\/$|\/\?|\/#/;
+function hasTrailingSlash(input = "", respectQueryAndFragment) {
+  if (!respectQueryAndFragment) {
     return input.endsWith("/");
   }
   return TRAILING_SLASH_RE.test(input);
 }
-function withoutTrailingSlash(input = "", queryParameters = false) {
-  if (!queryParameters) {
+function withoutTrailingSlash(input = "", respectQueryAndFragment) {
+  if (!respectQueryAndFragment) {
     return (hasTrailingSlash(input) ? input.slice(0, -1) : input) || "/";
   }
   if (!hasTrailingSlash(input, true)) {
     return input || "/";
   }
-  const [s0, ...s2] = input.split("?");
-  return (s0.slice(0, -1) || "/") + (s2.length > 0 ? `?${s2.join("?")}` : "");
+  let path = input;
+  let fragment2 = "";
+  const fragmentIndex = input.indexOf("#");
+  if (fragmentIndex >= 0) {
+    path = input.slice(0, fragmentIndex);
+    fragment2 = input.slice(fragmentIndex);
+  }
+  const [s0, ...s2] = path.split("?");
+  return (s0.slice(0, -1) || "/") + (s2.length > 0 ? `?${s2.join("?")}` : "") + fragment2;
 }
-function withTrailingSlash(input = "", queryParameters = false) {
-  if (!queryParameters) {
+function withTrailingSlash(input = "", respectQueryAndFragment) {
+  if (!respectQueryAndFragment) {
     return input.endsWith("/") ? input : input + "/";
   }
   if (hasTrailingSlash(input, true)) {
     return input || "/";
   }
-  const [s0, ...s2] = input.split("?");
-  return s0 + "/" + (s2.length > 0 ? `?${s2.join("?")}` : "");
+  let path = input;
+  let fragment2 = "";
+  const fragmentIndex = input.indexOf("#");
+  if (fragmentIndex >= 0) {
+    path = input.slice(0, fragmentIndex);
+    fragment2 = input.slice(fragmentIndex);
+    if (!path) {
+      return fragment2;
+    }
+  }
+  const [s0, ...s2] = path.split("?");
+  return s0 + "/" + (s2.length > 0 ? `?${s2.join("?")}` : "") + fragment2;
 }
 function hasLeadingSlash(input = "") {
   return input.startsWith("/");
@@ -11289,24 +11318,45 @@ function isEmptyURL(url) {
 function isNonEmptyURL(url) {
   return url && url !== "/";
 }
+const JOIN_LEADING_SLASH_RE = /^\.?\//;
 function joinURL(base, ...input) {
   let url = base || "";
-  for (const index of input.filter((url2) => isNonEmptyURL(url2))) {
-    url = url ? withTrailingSlash(url) + withoutLeadingSlash(index) : index;
+  for (const segment of input.filter((url2) => isNonEmptyURL(url2))) {
+    if (url) {
+      const _segment = segment.replace(JOIN_LEADING_SLASH_RE, "");
+      url = withTrailingSlash(url) + _segment;
+    } else {
+      url = segment;
+    }
   }
   return url;
 }
 function parseURL(input = "", defaultProto) {
+  const _specialProtoMatch = input.match(
+    /^[\s\0]*(blob:|data:|javascript:|vbscript:)(.*)/i
+  );
+  if (_specialProtoMatch) {
+    const [, _proto, _pathname = ""] = _specialProtoMatch;
+    return {
+      protocol: _proto.toLowerCase(),
+      pathname: _pathname,
+      href: _proto + _pathname,
+      auth: "",
+      host: "",
+      search: "",
+      hash: ""
+    };
+  }
   if (!hasProtocol(input, { acceptRelative: true })) {
     return defaultProto ? parseURL(defaultProto + input) : parsePath(input);
   }
-  const [protocol = "", auth, hostAndPath = ""] = (input.replace(/\\/g, "/").match(/([^/:]+:)?\/\/([^/@]+@)?(.*)/) || []).splice(1);
-  const [host = "", path = ""] = (hostAndPath.match(/([^#/?]*)(.*)?/) || []).splice(1);
+  const [, protocol = "", auth, hostAndPath = ""] = input.replace(/\\/g, "/").match(/^[\s\0]*([\w+.-]{2,}:)?\/\/([^/@]+@)?(.*)/) || [];
+  const [, host = "", path = ""] = hostAndPath.match(/([^#/?]*)(.*)?/) || [];
   const { pathname, search: search2, hash } = parsePath(
     path.replace(/\/(?=[A-Za-z]:)/, "")
   );
   return {
-    protocol,
+    protocol: protocol.toLowerCase(),
     auth: auth ? auth.slice(0, Math.max(0, auth.length - 1)) : "",
     host,
     pathname,
@@ -11754,7 +11804,7 @@ const _hoisted_4$7 = [
   _hoisted_3$l
 ];
 function render$h(_ctx, _cache) {
-  return openBlock(), createElementBlock("svg", _hoisted_1$t, _hoisted_4$7);
+  return openBlock(), createElementBlock("svg", _hoisted_1$t, [..._hoisted_4$7]);
 }
 var __unplugin_components_1$1 = { name: "carbon-information", render: render$h };
 const _hoisted_1$s = { key: 0 };
@@ -11884,7 +11934,7 @@ const _sfc_main$f = defineComponent({
         0,
         screenshotSize.width - elementPreviewSizeSC.width
       );
-      const screenshotTopVisisbleEdge = clamp2(
+      const screenshotTopVisibleEdge = clamp2(
         elementRectCenter.y - elementPreviewSizeSC.height / 2,
         0,
         screenshotSize.height - elementPreviewSizeSC.height
@@ -11892,11 +11942,11 @@ const _sfc_main$f = defineComponent({
       return {
         screenshot: {
           left: screenshotLeftVisibleEdge,
-          top: screenshotTopVisisbleEdge
+          top: screenshotTopVisibleEdge
         },
         clip: {
           left: elementRectSC.left - screenshotLeftVisibleEdge,
-          top: elementRectSC.top - screenshotTopVisisbleEdge
+          top: elementRectSC.top - screenshotTopVisibleEdge
         }
       };
     }
@@ -13507,14 +13557,10 @@ const searchResults = computed(() => {
         sortKey = `${sortKey}.${columnDefinition.sortKey}`;
       }
     }
-    data = orderBy(
-      data,
-      doLengthSort ? (i2) => {
-        var _a2;
-        return ((_a2 = get$1(i2, sortKey)) == null ? void 0 : _a2.length) || 0;
-      } : sortKey,
-      sorting.value.dir
-    );
+    data = orderBy(data, doLengthSort ? (i2) => {
+      var _a2;
+      return ((_a2 = get$1(i2, sortKey)) == null ? void 0 : _a2.length) || 0;
+    } : sortKey, sorting.value.dir);
   } else {
     data = orderBy(data, groupRoutesKey, "asc");
   }
@@ -13791,7 +13837,7 @@ const _hoisted_3$i = [
   _hoisted_2$k
 ];
 function render$g(_ctx, _cache) {
-  return openBlock(), createElementBlock("svg", _hoisted_1$n, _hoisted_3$i);
+  return openBlock(), createElementBlock("svg", _hoisted_1$n, [..._hoisted_3$i]);
 }
 var __unplugin_components_0$5 = { name: "mdi-dots-horizontal", render: render$g };
 const _hoisted_1$m = { class: "overflow-hidden rounded-lg shadow-lg ring-1 ring-black ring-opacity-5" };
@@ -13806,7 +13852,7 @@ const _sfc_main$a = defineComponent({
       const _component_i_mdi_dots_horizontal = __unplugin_components_0$5;
       const _component_PopoverButton = je;
       const _component_PopoverPanel = We;
-      const _component_Popover = ge$1;
+      const _component_Popover = ye$1;
       return openBlock(), createBlock(_component_Popover, { class: "relative flex items-center justify-end" }, {
         default: withCtx(({ open, close }) => [
           createVNode(_component_PopoverButton, {
@@ -13867,7 +13913,7 @@ const _hoisted_3$h = [
   _hoisted_2$i
 ];
 function render$f(_ctx, _cache) {
-  return openBlock(), createElementBlock("svg", _hoisted_1$l, _hoisted_3$h);
+  return openBlock(), createElementBlock("svg", _hoisted_1$l, [..._hoisted_3$h]);
 }
 var __unplugin_components_15 = { name: "mdi-magnify-scan", render: render$f };
 const _sfc_main$9 = {};
@@ -13890,7 +13936,7 @@ const _hoisted_30$2 = [
   _hoisted_2$h
 ];
 function render$e(_ctx, _cache) {
-  return openBlock(), createElementBlock("svg", _hoisted_1$k, _hoisted_30$2);
+  return openBlock(), createElementBlock("svg", _hoisted_1$k, [..._hoisted_30$2]);
 }
 var __unplugin_components_13 = { name: "vscode-icons-file-type-lighthouse", render: render$e };
 const _hoisted_1$j = {
@@ -13906,7 +13952,7 @@ const _hoisted_3$g = [
   _hoisted_2$g
 ];
 function render$d(_ctx, _cache) {
-  return openBlock(), createElementBlock("svg", _hoisted_1$j, _hoisted_3$g);
+  return openBlock(), createElementBlock("svg", _hoisted_1$j, [..._hoisted_3$g]);
 }
 var __unplugin_components_0$4 = { name: "icomoon-free-spinner8", render: render$d };
 const _sfc_main$8 = {};
@@ -13928,7 +13974,7 @@ const _hoisted_3$f = [
   _hoisted_2$f
 ];
 function render$c(_ctx, _cache) {
-  return openBlock(), createElementBlock("svg", _hoisted_1$i, _hoisted_3$f);
+  return openBlock(), createElementBlock("svg", _hoisted_1$i, [..._hoisted_3$f]);
 }
 var __unplugin_components_5 = { name: "carbon-chevron-sort-up", render: render$c };
 const _hoisted_1$h = {
@@ -13944,7 +13990,7 @@ const _hoisted_3$e = [
   _hoisted_2$e
 ];
 function render$b(_ctx, _cache) {
-  return openBlock(), createElementBlock("svg", _hoisted_1$h, _hoisted_3$e);
+  return openBlock(), createElementBlock("svg", _hoisted_1$h, [..._hoisted_3$e]);
 }
 var __unplugin_components_4 = { name: "carbon-chevron-sort-down", render: render$b };
 const _hoisted_1$g = {
@@ -13960,7 +14006,7 @@ const _hoisted_3$d = [
   _hoisted_2$d
 ];
 function render$a(_ctx, _cache) {
-  return openBlock(), createElementBlock("svg", _hoisted_1$g, _hoisted_3$d);
+  return openBlock(), createElementBlock("svg", _hoisted_1$g, [..._hoisted_3$d]);
 }
 var __unplugin_components_3 = { name: "carbon-chevron-sort", render: render$a };
 const _hoisted_1$f = {
@@ -13981,7 +14027,7 @@ const _hoisted_4$4 = [
   _hoisted_3$c
 ];
 function render$9(_ctx, _cache) {
-  return openBlock(), createElementBlock("svg", _hoisted_1$f, _hoisted_4$4);
+  return openBlock(), createElementBlock("svg", _hoisted_1$f, [..._hoisted_4$4]);
 }
 var __unplugin_components_0$3 = { name: "carbon-warning-alt", render: render$9 };
 const _hoisted_1$e = { class: "flex items-center" };
@@ -14739,14 +14785,14 @@ class Matrix3 {
   }
   multiplyMatrices(a2, b3) {
     const ae2 = a2.elements;
-    const be2 = b3.elements;
+    const be = b3.elements;
     const te2 = this.elements;
     const a11 = ae2[0], a12 = ae2[3], a13 = ae2[6];
     const a21 = ae2[1], a22 = ae2[4], a23 = ae2[7];
     const a31 = ae2[2], a32 = ae2[5], a33 = ae2[8];
-    const b11 = be2[0], b12 = be2[3], b13 = be2[6];
-    const b21 = be2[1], b22 = be2[4], b23 = be2[7];
-    const b31 = be2[2], b32 = be2[5], b33 = be2[8];
+    const b11 = be[0], b12 = be[3], b13 = be[6];
+    const b21 = be[1], b22 = be[4], b23 = be[7];
+    const b31 = be[2], b32 = be[5], b33 = be[8];
     te2[0] = a11 * b11 + a12 * b21 + a13 * b31;
     te2[3] = a11 * b12 + a12 * b22 + a13 * b32;
     te2[6] = a11 * b13 + a12 * b23 + a13 * b33;
@@ -17899,15 +17945,15 @@ class Matrix4 {
     const c2 = Math.cos(y2), d2 = Math.sin(y2);
     const e2 = Math.cos(z2), f2 = Math.sin(z2);
     if (euler.order === "XYZ") {
-      const ae2 = a2 * e2, af = a2 * f2, be2 = b3 * e2, bf = b3 * f2;
+      const ae2 = a2 * e2, af = a2 * f2, be = b3 * e2, bf = b3 * f2;
       te2[0] = c2 * e2;
       te2[4] = -c2 * f2;
       te2[8] = d2;
-      te2[1] = af + be2 * d2;
+      te2[1] = af + be * d2;
       te2[5] = ae2 - bf * d2;
       te2[9] = -b3 * c2;
       te2[2] = bf - ae2 * d2;
-      te2[6] = be2 + af * d2;
+      te2[6] = be + af * d2;
       te2[10] = a2 * c2;
     } else if (euler.order === "YXZ") {
       const ce2 = c2 * e2, cf = c2 * f2, de = d2 * e2, df = d2 * f2;
@@ -17932,13 +17978,13 @@ class Matrix4 {
       te2[6] = b3;
       te2[10] = a2 * c2;
     } else if (euler.order === "ZYX") {
-      const ae2 = a2 * e2, af = a2 * f2, be2 = b3 * e2, bf = b3 * f2;
+      const ae2 = a2 * e2, af = a2 * f2, be = b3 * e2, bf = b3 * f2;
       te2[0] = c2 * e2;
-      te2[4] = be2 * d2 - af;
+      te2[4] = be * d2 - af;
       te2[8] = ae2 * d2 + bf;
       te2[1] = c2 * f2;
       te2[5] = bf * d2 + ae2;
-      te2[9] = af * d2 - be2;
+      te2[9] = af * d2 - be;
       te2[2] = -d2;
       te2[6] = b3 * c2;
       te2[10] = a2 * c2;
@@ -18019,16 +18065,16 @@ class Matrix4 {
   }
   multiplyMatrices(a2, b3) {
     const ae2 = a2.elements;
-    const be2 = b3.elements;
+    const be = b3.elements;
     const te2 = this.elements;
     const a11 = ae2[0], a12 = ae2[4], a13 = ae2[8], a14 = ae2[12];
     const a21 = ae2[1], a22 = ae2[5], a23 = ae2[9], a24 = ae2[13];
     const a31 = ae2[2], a32 = ae2[6], a33 = ae2[10], a34 = ae2[14];
     const a41 = ae2[3], a42 = ae2[7], a43 = ae2[11], a44 = ae2[15];
-    const b11 = be2[0], b12 = be2[4], b13 = be2[8], b14 = be2[12];
-    const b21 = be2[1], b22 = be2[5], b23 = be2[9], b24 = be2[13];
-    const b31 = be2[2], b32 = be2[6], b33 = be2[10], b34 = be2[14];
-    const b41 = be2[3], b42 = be2[7], b43 = be2[11], b44 = be2[15];
+    const b11 = be[0], b12 = be[4], b13 = be[8], b14 = be[12];
+    const b21 = be[1], b22 = be[5], b23 = be[9], b24 = be[13];
+    const b31 = be[2], b32 = be[6], b33 = be[10], b34 = be[14];
+    const b41 = be[3], b42 = be[7], b43 = be[11], b44 = be[15];
     te2[0] = a11 * b11 + a12 * b21 + a13 * b31 + a14 * b41;
     te2[4] = a11 * b12 + a12 * b22 + a13 * b32 + a14 * b42;
     te2[8] = a11 * b13 + a12 * b23 + a13 * b33 + a14 * b43;
@@ -54299,7 +54345,7 @@ const _hoisted_3$a = [
   _hoisted_2$a
 ];
 function render$8(_ctx, _cache) {
-  return openBlock(), createElementBlock("svg", _hoisted_1$d, _hoisted_3$a);
+  return openBlock(), createElementBlock("svg", _hoisted_1$d, [..._hoisted_3$a]);
 }
 var __unplugin_components_9$1 = { name: "simple-line-icons-heart", render: render$8 };
 const _hoisted_1$c = {
@@ -54315,7 +54361,7 @@ const _hoisted_3$9 = [
   _hoisted_2$9
 ];
 function render$7(_ctx, _cache) {
-  return openBlock(), createElementBlock("svg", _hoisted_1$c, _hoisted_3$9);
+  return openBlock(), createElementBlock("svg", _hoisted_1$c, [..._hoisted_3$9]);
 }
 var __unplugin_components_0$2 = { name: "carbon-caret-right", render: render$7 };
 const _hoisted_1$b = { class: "flex items-center 2xl:mb-1 focus:outline-none justify-between" };
@@ -54361,7 +54407,7 @@ const _hoisted_4$2 = [
   _hoisted_3$8
 ];
 function render$6(_ctx, _cache) {
-  return openBlock(), createElementBlock("svg", _hoisted_1$a, _hoisted_4$2);
+  return openBlock(), createElementBlock("svg", _hoisted_1$a, [..._hoisted_4$2]);
 }
 var __unplugin_components_1 = { name: "carbon-warning", render: render$6 };
 const _hoisted_1$9 = {
@@ -54377,7 +54423,7 @@ const _hoisted_3$7 = [
   _hoisted_2$7
 ];
 function render$5(_ctx, _cache) {
-  return openBlock(), createElementBlock("svg", _hoisted_1$9, _hoisted_3$7);
+  return openBlock(), createElementBlock("svg", _hoisted_1$9, [..._hoisted_3$7]);
 }
 var __unplugin_components_12 = { name: "carbon-sun", render: render$5 };
 const _hoisted_1$8 = {
@@ -54393,7 +54439,7 @@ const _hoisted_3$6 = [
   _hoisted_2$6
 ];
 function render$4(_ctx, _cache) {
-  return openBlock(), createElementBlock("svg", _hoisted_1$8, _hoisted_3$6);
+  return openBlock(), createElementBlock("svg", _hoisted_1$8, [..._hoisted_3$6]);
 }
 var __unplugin_components_11 = { name: "carbon-moon", render: render$4 };
 const _sfc_main$4 = {
@@ -54430,7 +54476,7 @@ const _hoisted_3$5 = [
   _hoisted_2$5
 ];
 function render$3(_ctx, _cache) {
-  return openBlock(), createElementBlock("svg", _hoisted_1$6, _hoisted_3$5);
+  return openBlock(), createElementBlock("svg", _hoisted_1$6, [..._hoisted_3$5]);
 }
 var __unplugin_components_9 = { name: "carbon-logo-github", render: render$3 };
 const _hoisted_1$5 = {
@@ -54446,7 +54492,7 @@ const _hoisted_3$4 = [
   _hoisted_2$4
 ];
 function render$2(_ctx, _cache) {
-  return openBlock(), createElementBlock("svg", _hoisted_1$5, _hoisted_3$4);
+  return openBlock(), createElementBlock("svg", _hoisted_1$5, [..._hoisted_3$4]);
 }
 var __unplugin_components_8 = { name: "ic-baseline-network-check", render: render$2 };
 const _hoisted_1$4 = {
@@ -54462,7 +54508,7 @@ const _hoisted_3$3 = [
   _hoisted_2$3
 ];
 function render$1(_ctx, _cache) {
-  return openBlock(), createElementBlock("svg", _hoisted_1$4, _hoisted_3$3);
+  return openBlock(), createElementBlock("svg", _hoisted_1$4, [..._hoisted_3$3]);
 }
 var __unplugin_components_7 = { name: "ic-outline-devices", render: render$1 };
 const _hoisted_1$3 = {
@@ -54478,7 +54524,7 @@ const _hoisted_3$2 = [
   _hoisted_2$2
 ];
 function render(_ctx, _cache) {
-  return openBlock(), createElementBlock("svg", _hoisted_1$3, _hoisted_3$2);
+  return openBlock(), createElementBlock("svg", _hoisted_1$3, [..._hoisted_3$2]);
 }
 var __unplugin_components_0$1 = { name: "carbon-search", render };
 const _sfc_main$3 = defineComponent({

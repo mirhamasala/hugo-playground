@@ -19,9 +19,6 @@
 # <URL> # Reason for skipping
 #
 # Example:
-# http://example-broken-link.com # Broken link, site is down
+# http://example-broken-link # Broken link, site is down
 #
 # ================================
-.*facebook\.com.*
-.*instagram\.com.*
-.*twitter\.com.*
